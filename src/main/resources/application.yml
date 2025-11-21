@@ -7,7 +7,10 @@ spring:
     locations: classpath:db/migration
 
   datasource:
-    url: ${DATABASE_URL}
+    # url: ${DATABASE_URL}
+    url: jdbc:postgresql://${DB_HOST:${PGHOST}}:${DB_PORT:${PGPORT}}/${DB_NAME:${PGDATABASE}}
+    username: ${DB_USERNAME:${PGUSER}}
+    password: ${DB_PASSWORD:${PGPASSWORD}}
     driver-class-name: org.postgresql.Driver
 
     hikari:
