@@ -1,0 +1,11 @@
+logs/
+target/
+.mvn/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+*.gz
+node_modules/
+

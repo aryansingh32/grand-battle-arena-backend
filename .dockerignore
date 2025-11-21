@@ -1,0 +1,75 @@
+# Build artifacts
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+.apt_generated
+.sts4-cache/
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties
+
+# Documentation (not needed in image)
+*.md
+docs/
+README*
+LICENSE*
+
+# Railway specific
+.railwayignore
+railway.toml
+nixpacks.toml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+src/test/
+
+# Cache directories
+.cache/
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (if any)
+node_modules/
+
+# Build scripts (not needed in image)
+mvnw.cmd
+

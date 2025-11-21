@@ -1,0 +1,113 @@
+spring:
+  application:
+    name: EsportTournament
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  datasource:
+    # Railway provides DATABASE_URL, DatabaseConfig will parse it
+    # Fallback to individual properties if DATABASE_URL not set
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:test_esport}}
+    username: ${DB_USERNAME:${PGUSER:postgres}}
+    password: ${DB_PASSWORD:${PGPASSWORD:0000}}
+    driver-class-name: org.postgresql.Driver
+
+    # HikariCP Connection Pool (recommended)
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  security:
+    enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:false}
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        jdbc.batch_size: 20
+        order_inserts: true
+        order_updates: true
+        generate_statistics: false
+
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  data:
+    redis:
+      host: ${REDIS_HOST:${REDIS_URL:localhost}}
+      port: ${REDIS_PORT:6379}
+      timeout: 60000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+      # Parse Redis URL if provided (Railway format: redis://:password@host:port)
+      url: ${REDIS_URL:}
+
+  cache:
+    # Use Redis if available, otherwise fallback to simple cache
+    type: ${CACHE_TYPE:${REDIS_HOST:simple}}
+
+  jackson:
+    time-zone: Asia/Kolkata
+    date-format: yyyy-MM-dd HH:mm:ss
+
+server:
+  port: ${PORT:8080}
+
+# ============================================================
+# CUSTOM APP SETTINGS
+# ============================================================
+app:
+  firebase:
+    config-path: ${FIREBASE_CONFIG_PATH:firebase-service-account.json}
+
+  admin:
+    # Use plain password or hashed — your choice
+    password: admin123
+    # password-hash: ${ADMIN_PASSWORD_HASH:}
+
+# ============================================================
+# LOGGING
+# ============================================================
+logging:
+  level:
+    root: INFO
+    org.springframework.web.filter: DEBUG
+    org.apache.catalina: DEBUG
+    com.esport.EsportTournament: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+  file:
+    name: logs/application.log
+    max-size: 10MB
+    max-history: 30
+
+debug: ${DEBUG:false}
+
+# ============================================================
+# ACTUATOR (Optional)
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
