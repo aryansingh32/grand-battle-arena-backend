@@ -43,7 +43,8 @@ WORKDIR /app
 COPY --from=builder /build/target/EsportTournament-0.0.1-SNAPSHOT.jar app.jar
 
 # Change ownership to spring user
-RUN chown spring:spring app.jar
+RUN mkdir -p /app/logs && \
+    chown -R spring:spring /app
 
 # Switch to non-root user
 USER spring:spring
@@ -63,5 +64,5 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
                -Djava.security.egd=file:/dev/./urandom"
 
 # Entry point
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "mkdir -p /app/logs && java $JAVA_OPTS -jar app.jar"]
 
