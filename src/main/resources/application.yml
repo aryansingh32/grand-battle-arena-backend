@@ -7,14 +7,9 @@ spring:
     locations: classpath:db/migration
 
   datasource:
-    # Railway provides DATABASE_URL, DatabaseConfig will parse it
-    # Fallback to individual properties if DATABASE_URL not set
-    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:test_esport}}
-    username: ${DB_USERNAME:${PGUSER:postgres}}
-    password: ${DB_PASSWORD:${PGPASSWORD:0000}}
+    url: ${DATABASE_URL}
     driver-class-name: org.postgresql.Driver
 
-    # HikariCP Connection Pool (recommended)
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -46,20 +41,16 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:${REDIS_URL:localhost}}
-      port: ${REDIS_PORT:6379}
+      url: ${REDIS_URL:${REDIS_PUBLIC_URL:}}
       timeout: 60000
       lettuce:
         pool:
           max-active: 8
           max-idle: 8
           min-idle: 2
-      # Parse Redis URL if provided (Railway format: redis://:password@host:port)
-      url: ${REDIS_URL:}
 
   cache:
-    # Use Redis if available, otherwise fallback to simple cache
-    type: ${CACHE_TYPE:${REDIS_HOST:simple}}
+    type: ${CACHE_TYPE:simple}
 
   jackson:
     time-zone: Asia/Kolkata
@@ -68,21 +59,13 @@ spring:
 server:
   port: ${PORT:8080}
 
-# ============================================================
-# CUSTOM APP SETTINGS
-# ============================================================
 app:
   firebase:
     config-path: ${FIREBASE_CONFIG_PATH:firebase-service-account.json}
 
   admin:
-    # Use plain password or hashed — your choice
-    password: admin123
-    # password-hash: ${ADMIN_PASSWORD_HASH:}
+    password: ${APP_ADMIN_PASSWORD:admin123}
 
-# ============================================================
-# LOGGING
-# ============================================================
 logging:
   level:
     root: INFO
@@ -100,9 +83,6 @@ logging:
 
 debug: ${DEBUG:false}
 
-# ============================================================
-# ACTUATOR (Optional)
-# ============================================================
 management:
   endpoints:
     web:
