@@ -9,8 +9,8 @@ spring:
   datasource:
     
     url: jdbc:${DATABASE_URL:jdbc:postgresql://localhost:5432/esport}
-    username: ${DB_USERNAME:${PGUSER}}
-    password: ${DB_PASSWORD:${PGPASSWORD}}
+    username: ${DB_USERNAME:postgres}  
+    password: ${DB_PASSWORD:}  
     driver-class-name: org.postgresql.Driver
 
     hikari:
