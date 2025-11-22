@@ -8,7 +8,7 @@ spring:
 
   datasource:
     # url: ${DATABASE_URL}
-    url: jdbc:postgresql://${DB_HOST:${PGHOST}}:${DB_PORT:${PGPORT}}/${DB_NAME:${PGDATABASE}}
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:esport}}
     username: ${DB_USERNAME:${PGUSER}}
     password: ${DB_PASSWORD:${PGPASSWORD}}
     driver-class-name: org.postgresql.Driver
@@ -44,7 +44,10 @@ spring:
 
   data:
     redis:
-      url: ${REDIS_URL:${REDIS_PUBLIC_URL:}}
+      # url: ${REDIS_URL:${REDIS_PUBLIC_URL:}}
+      host: ${REDISHOST}
+      port: ${REDISPORT:6379}
+      password: ${REDIS_PASSWORD}
       timeout: 60000
       lettuce:
         pool:
@@ -64,7 +67,8 @@ server:
 
 app:
   firebase:
-    config-path: ${FIREBASE_CONFIG_PATH:firebase-service-account.json}
+    # config-path: ${FIREBASE_CONFIG_PATH:firebase-service-account.json}
+    credentials: ${FIREBASE_CREDENTIALS}
 
   admin:
     password: ${APP_ADMIN_PASSWORD:admin123}
@@ -72,15 +76,11 @@ app:
 logging:
   level:
     root: INFO
-    org.springframework.web.filter: DEBUG
-    org.apache.catalina: DEBUG
-    com.esport.EsportTournament: DEBUG
-    org.springframework.security: DEBUG
+    com.esport: DEBUG
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
+    org.hibernate.type.descriptor.sql: TRACE
   file:
-    name: logs/application.log
+    name: ${LOG_PATH:}
     max-size: 10MB
     max-history: 30
 
