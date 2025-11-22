@@ -7,8 +7,8 @@ spring:
     locations: classpath:db/migration
 
   datasource:
-    # url: ${DATABASE_URL}
-    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:esport}}
+    
+    url: jdbc:${DATABASE_URL:jdbc:postgresql://localhost:5432/esport}
     username: ${DB_USERNAME:${PGUSER}}
     password: ${DB_PASSWORD:${PGPASSWORD}}
     driver-class-name: org.postgresql.Driver
