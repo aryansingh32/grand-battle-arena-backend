@@ -9,10 +9,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -21,7 +20,6 @@ import java.util.Collections;
 
 @Slf4j
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
 public class FirebaseAuthFilter extends OncePerRequestFilter {
 
     @Override
@@ -80,6 +78,12 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                         );
 
                 authentication.setDetails(decodedToken);
+                
+                // Store in request attributes for downstream use
+                request.setAttribute("firebaseUid", firebaseUID);
+                request.setAttribute("firebaseEmail", email);
+                request.setAttribute("firebaseToken", decodedToken);
+                
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.info("🔒 Set authentication in SecurityContext for user: {}", firebaseUID);
@@ -116,7 +120,11 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
     private boolean isPublicEndpoint(String uri) {
         boolean isPublic = uri.startsWith("/api/public/") ||
                 uri.equals("/actuator/health") ||
-                uri.startsWith("/actuator/");
+                uri.startsWith("/actuator/") ||
+                uri.startsWith("/ws/") ||
+                uri.equals("/api/banners") ||
+                uri.equals("/api/filters") ||
+                uri.equals("/api/app/version");
 
         log.debug("🌐 Endpoint {} is public: {}", uri, isPublic);
         return isPublic;
