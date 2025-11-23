@@ -1,16 +1,16 @@
 # ============================================================
-# Stage 1: Maven Builder
+# Stage 1: Maven Builder (Build the JAR)
 # ============================================================
 FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 
-# Copy pom.xml first for better layer caching
+# Copy Maven files for dependency caching
 COPY pom.xml .
 COPY .mvn .mvn
 COPY mvnw .
 
-# Download dependencies (this layer will be cached if pom.xml doesn't change)
+# Download dependencies (cached layer)
 RUN mvn dependency:go-offline -B
 
 # Copy source code
@@ -19,50 +19,55 @@ COPY src ./src
 # Build the application (skip tests for faster builds)
 RUN mvn clean package -DskipTests -B
 
-# Verify JAR was created
-RUN ls -la target/*.jar
+# Verify JAR exists
+RUN ls -lh target/*.jar
 
 # ============================================================
-# Stage 2: Runtime Image
+# Stage 2: Runtime Image (Optimized for Render Free Tier)
 # ============================================================
 FROM eclipse-temurin:21-jre-alpine
 
-# Add metadata
+# Metadata
 LABEL maintainer="EsportTournament"
-LABEL description="Grand Battle Arena Backend - Spring Boot Application"
+LABEL description="Esport Tournament Backend - Render Deployment"
 
-# Install wget for healthcheck (Alpine doesn't include it by default)
-RUN apk add --no-cache wget
+# Install curl for health checks
+RUN apk add --no-cache curl
 
-# Create app user for security (non-root)
+# Create non-root user for security
 RUN addgroup -S spring && adduser -S spring -G spring
 
 WORKDIR /app
 
-# Copy JAR from builder stage
+# Copy JAR from builder
 COPY --from=builder /build/target/EsportTournament-0.0.1-SNAPSHOT.jar app.jar
 
-# Change ownership to spring user
+# Create logs directory
 RUN mkdir -p /app/logs && \
     chown -R spring:spring /app
 
 # Switch to non-root user
 USER spring:spring
 
-# Expose port (Railway will set PORT env var)
-EXPOSE 8080
+# Render uses port 10000 internally
+EXPOSE 10000
 
-# Health check (using wget, install if needed, or use curl)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+# Health check for Render
+HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=5 \
+  CMD curl -f http://localhost:${PORT:-10000}/actuator/health || exit 1
 
-# JVM optimizations for containerized environments
-ENV JAVA_OPTS="-XX:+UseContainerSupport \
-               -XX:MaxRAMPercentage=75.0 \
-               -XX:+UseG1GC \
+# Memory-optimized JVM settings for Render Free Tier (512MB)
+ENV JAVA_OPTS="-Xms128m \
+               -Xmx350m \
+               -XX:MaxMetaspaceSize=100m \
+               -XX:ReservedCodeCacheSize=32m \
+               -XX:+UseSerialGC \
+               -XX:+TieredCompilation \
+               -XX:TieredStopAtLevel=1 \
                -XX:+UseStringDeduplication \
-               -Djava.security.egd=file:/dev/./urandom"
+               -Djava.security.egd=file:/dev/./urandom \
+               -Dspring.jmx.enabled=false \
+               -Dfile.encoding=UTF-8"
 
 # Entry point
-ENTRYPOINT ["sh", "-c", "mkdir -p /app/logs && java $JAVA_OPTS -jar app.jar"]
-
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
