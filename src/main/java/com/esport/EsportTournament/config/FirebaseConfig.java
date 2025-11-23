@@ -6,12 +6,14 @@ import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Configuration
+@Lazy(false)  // Force eager initialization - CRITICAL!
 public class FirebaseConfig {
     
     @PostConstruct
@@ -25,12 +27,19 @@ public class FirebaseConfig {
             // Try base64 version first if available
             if (credentialsBase64 != null && !credentialsBase64.isBlank()) {
                 log.info("📦 Using FIREBASE_SERVICE_ACCOUNT_BASE64");
-                credentials = new String(java.util.Base64.getDecoder().decode(credentialsBase64), StandardCharsets.UTF_8);
-            } else if (credentials != null && !credentials.isBlank()) {
-                log.info("📦 Using FIREBASE_CREDENTIALS");
-            } else {
+                try {
+                    credentials = new String(java.util.Base64.getDecoder().decode(credentialsBase64), StandardCharsets.UTF_8);
+                    log.info("✅ Successfully decoded base64 credentials");
+                } catch (Exception e) {
+                    log.error("❌ Failed to decode base64 credentials: {}", e.getMessage());
+                }
+            }
+            
+            if (credentials == null || credentials.isBlank()) {
                 log.error("❌ No Firebase credentials found in environment variables!");
-                log.error("❌ Please set either FIREBASE_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_BASE64");
+                log.error("❌ Available env vars: FIREBASE_CREDENTIALS={}, FIREBASE_SERVICE_ACCOUNT_BASE64={}", 
+                    System.getenv("FIREBASE_CREDENTIALS") != null ? "present" : "missing",
+                    System.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64") != null ? "present" : "missing");
                 throw new IllegalStateException("Firebase credentials missing!");
             }
             
@@ -62,7 +71,8 @@ public class FirebaseConfig {
             log.error("💥 Failed to initialize Firebase", e);
             log.error("💥 Error type: {}", e.getClass().getName());
             log.error("💥 Error message: {}", e.getMessage());
-            throw new RuntimeException("Firebase initialization failed: " + e.getMessage(), e);
+            // Don't throw exception - let app start but log error clearly
+            log.error("⚠️  ⚠️  ⚠️  APPLICATION WILL RUN BUT FIREBASE AUTH WILL NOT WORK! ⚠️  ⚠️  ⚠️ ");
         }
     }
 }
