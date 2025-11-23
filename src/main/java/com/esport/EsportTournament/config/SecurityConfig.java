@@ -86,18 +86,18 @@ public class SecurityConfig {
      * Spring Security will handle them through the filter chain
      */
     // @Bean
-    // public FilterRegistrationBean<FirebaseAuthFilter> firebaseAuthFilterRegistration(FirebaseAuthFilter filter) {
-    //     FilterRegistrationBean<FirebaseAuthFilter> registration = new FilterRegistrationBean<>(filter);
-    //     registration.setEnabled(false); // Disable automatic registration
-    //     return registration;
-    // }
+    public FilterRegistrationBean<FirebaseAuthFilter> firebaseAuthFilterRegistration(FirebaseAuthFilter filter) {
+        FilterRegistrationBean<FirebaseAuthFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false); // Disable automatic registration
+        return registration;
+    }
 
-    // @Bean
-    // public FilterRegistrationBean<RoleInjectionFilter> roleInjectionFilterRegistration(RoleInjectionFilter filter) {
-    //     FilterRegistrationBean<RoleInjectionFilter> registration = new FilterRegistrationBean<>(filter);
-    //     registration.setEnabled(false); // Disable automatic registration
-    //     return registration;
-    // }
+    @Bean
+    public FilterRegistrationBean<RoleInjectionFilter> roleInjectionFilterRegistration(RoleInjectionFilter filter) {
+        FilterRegistrationBean<RoleInjectionFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false); // Disable automatic registration
+        return registration;
+    }
 
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
