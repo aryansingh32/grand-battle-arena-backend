@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -47,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/app/version").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
 
                         // Registration endpoints - allow unregistered users to complete registration
                         .requestMatchers("/api/users/me").permitAll()
@@ -82,20 +82,19 @@ public class SecurityConfig {
     }
 
     /**
-     * Disable automatic registration of our custom filters to prevent conflicts
-     * Spring Security will handle them through the filter chain
+     * Disable automatic registration of our custom filters to prevent double execution
      */
-    // @Bean
+    @Bean
     public FilterRegistrationBean<FirebaseAuthFilter> firebaseAuthFilterRegistration(FirebaseAuthFilter filter) {
         FilterRegistrationBean<FirebaseAuthFilter> registration = new FilterRegistrationBean<>(filter);
-        registration.setEnabled(false); // Disable automatic registration
+        registration.setEnabled(false);
         return registration;
     }
 
     @Bean
     public FilterRegistrationBean<RoleInjectionFilter> roleInjectionFilterRegistration(RoleInjectionFilter filter) {
         FilterRegistrationBean<RoleInjectionFilter> registration = new FilterRegistrationBean<>(filter);
-        registration.setEnabled(false); // Disable automatic registration
+        registration.setEnabled(false);
         return registration;
     }
 
@@ -103,23 +102,22 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Use setAllowedOriginPatterns to allow wildcards
-        config.setAllowedOriginPatterns(List.of(
-                // Existing environment variable and localhost for development
+        config.setAllowedOriginPatterns(Arrays.asList(
                 System.getenv().getOrDefault("FRONTEND_ORIGIN", "http://localhost:3000"),
-                "http://localhost:8081",
-                // This pattern allows any subdomain from ngrok-free.app
-                "https://*.ngrok-free.app"
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.ngrok-free.app",
+                "https://*.onrender.com"
         ));
 
-        // Keep the rest of your configuration as it is
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "ngrok-skip-browser-warning"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        config.setAllowedHeaders(Arrays.asList("*", "Authorization", "Content-Type", "ngrok-skip-browser-warning"));
+        config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
     }
-
 }
