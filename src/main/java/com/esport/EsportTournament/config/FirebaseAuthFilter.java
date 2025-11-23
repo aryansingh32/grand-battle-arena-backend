@@ -1,5 +1,6 @@
 package com.esport.EsportTournament.config;
 
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
@@ -53,6 +54,15 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             log.debug("🎫 Token preview: {}...", idToken.substring(0, Math.min(50, idToken.length())));
 
             try {
+                // **CRITICAL: Check if Firebase is initialized**
+                if (FirebaseApp.getApps().isEmpty()) {
+                    log.error("💥 Firebase app not initialized! Cannot verify token.");
+                    response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase not initialized\"}");
+                    return;
+                }
+
                 // Verify Firebase ID token
                 log.info("🔍 Verifying Firebase token...");
                 FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
@@ -79,6 +89,13 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.getWriter().write("{\"error\":\"Invalid or expired token\",\"details\":\"" + e.getMessage() + "\"}");
+                return;
+            } catch (IllegalStateException e) {
+                // This catches the "FirebaseApp with name [DEFAULT] doesn't exist" error
+                log.error("💥 Firebase not initialized: {}", e.getMessage());
+                response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase initialization failed\"}");
                 return;
             } catch (Exception e) {
                 log.error("💥 Error processing Firebase token", e);
