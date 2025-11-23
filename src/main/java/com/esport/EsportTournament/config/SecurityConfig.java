@@ -107,7 +107,8 @@ public class SecurityConfig {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "https://*.ngrok-free.app",
-                "https://*.onrender.com"
+                "https://*.onrender.com",
+                "https://*.netlify.app"
         ));
 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
