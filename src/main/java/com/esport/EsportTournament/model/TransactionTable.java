@@ -21,6 +21,7 @@ public class TransactionTable {
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     private Users userId; // firebase User UId
+    @Column(name = "transaction_uid")
     private String transactionUID;    //entered by user
     private int amount; //coins
     private TransactionStatus status;
