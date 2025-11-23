@@ -1,6 +1,9 @@
 spring:
+
   application:
     name: EsportTournament
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration    
   
   main:
     lazy-initialization: true
