@@ -11,8 +11,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -29,7 +27,6 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 public class RoleInjectionFilter extends OncePerRequestFilter {
 
     private final UsersRepo usersRepo;
@@ -46,10 +43,17 @@ public class RoleInjectionFilter extends OncePerRequestFilter {
         log.info("👤 RoleInjectionFilter processing: {}", requestURI);
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("🔍 Current authentication: {}", authentication != null ? "Present" : "Null");
+        log.info("🔍 Current authentication: {}", 
+            authentication != null ? authentication.getClass().getSimpleName() : "Null");
+        
+        if (authentication != null) {
+            log.info("🔍 Authentication principal type: {}", 
+                authentication.getPrincipal() != null ? authentication.getPrincipal().getClass().getSimpleName() : "Null");
+            log.info("🔍 Is authenticated: {}", authentication.isAuthenticated());
+        }
 
         // Only process if we have a Firebase authenticated user
-        if (authentication != null && authentication.getPrincipal() instanceof String firebaseUID) {
+        if (authentication != null && authentication.isAuthenticated() && authentication.getPrincipal() instanceof String firebaseUID) {
             log.info("🔑 Processing roles for Firebase UID: {}", firebaseUID);
 
             try {
@@ -80,7 +84,7 @@ public class RoleInjectionFilter extends OncePerRequestFilter {
                 // Don't fail the request, just log the error
             }
         } else {
-            log.info("⚠️  No Firebase authentication found, skipping role injection");
+            log.info("⚠️  No Firebase authentication found or not authenticated, skipping role injection");
         }
 
         log.info("➡️  Role injection complete, proceeding to next filter");
@@ -211,6 +215,7 @@ public class RoleInjectionFilter extends OncePerRequestFilter {
         boolean shouldSkip = uri.startsWith("/api/public/") ||
                 uri.equals("/actuator/health") ||
                 uri.startsWith("/actuator/") ||
+                uri.startsWith("/ws/") ||
                 "OPTIONS".equals(request.getMethod());
 
         if (shouldSkip) {
