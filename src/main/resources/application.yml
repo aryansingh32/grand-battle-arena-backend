@@ -2,7 +2,6 @@ spring:
   application:
     name: EsportTournament
   
-  # CRITICAL: Lazy initialization for low memory
   main:
     lazy-initialization: true
     keep-alive: true
@@ -10,14 +9,12 @@ spring:
   jmx:
     enabled: false
   
-  # Flyway configuration
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-    baseline-version: 0
   
-  # PostgreSQL Configuration (Render format)
+  # PostgreSQL (from Render)
   datasource:
     url: ${DATABASE_URL}
     driver-class-name: org.postgresql.Driver
@@ -27,11 +24,10 @@ spring:
       connection-timeout: 20000
       idle-timeout: 300000
       max-lifetime: 900000
-      leak-detection-threshold: 60000
   
   jpa:
     hibernate:
-      ddl-auto: none  # Let Flyway handle migrations
+      ddl-auto: none
     show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
@@ -40,14 +36,16 @@ spring:
         jdbc.batch_size: 10
         order_inserts: true
         order_updates: true
-        generate_statistics: false
-        query.plan_cache_max_size: 32
-        query.in_clause_parameter_padding: false
   
-  # Redis Configuration (Render format)
+  # Upstash Redis Configuration
   data:
     redis:
-      url: ${REDIS_URL}
+      # Upstash uses REST API
+      host: ${UPSTASH_REDIS_HOST}
+      port: ${UPSTASH_REDIS_PORT}
+      password: ${UPSTASH_REDIS_PASSWORD}
+      ssl:
+        enabled: ${UPSTASH_REDIS_SSL:true}
       timeout: 30000
       lettuce:
         pool:
@@ -56,40 +54,33 @@ spring:
           min-idle: 1
   
   cache:
-    type: redis
+    type: ${CACHE_TYPE:simple}  # Will be 'redis' when Upstash is configured
   
-  # File upload
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
   
-  # JSON serialization
   jackson:
     time-zone: Asia/Kolkata
     date-format: yyyy-MM-dd HH:mm:ss
 
-# Server Configuration
 server:
-  port: ${PORT:10000}  # Render uses port 10000 by default
+  port: ${PORT:10000}
   tomcat:
     threads:
       max: 20
       min-spare: 2
     max-connections: 500
-    accept-count: 20
   compression:
     enabled: true
-    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json
 
-# Firebase Configuration
 app:
   firebase:
     credentials: ${FIREBASE_CREDENTIALS}
   admin:
     password: ${APP_ADMIN_PASSWORD:admin123}
 
-# Actuator (Health check for Render)
 management:
   endpoints:
     web:
@@ -100,18 +91,8 @@ management:
       probes:
         enabled: true
       show-details: always
-  health:
-    livenessState:
-      enabled: true
-    readinessState:
-      enabled: true
 
-# Logging
 logging:
   level:
     root: INFO
     com.esport: INFO
-    org.springframework.web: INFO
-    org.hibernate: WARN
-  pattern:
-    console: '%d{yyyy-MM-dd HH:mm:ss} - %msg%n'
