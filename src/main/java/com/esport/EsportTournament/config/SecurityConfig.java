@@ -31,8 +31,7 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // Add custom filters to the chain
                 .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
@@ -76,13 +75,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/appeal").hasRole("BANNED")
 
                         // All other requests require authentication
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .build();
     }
 
     /**
-     * Disable automatic registration of our custom filters to prevent double execution
+     * Disable automatic registration of our custom filters to prevent double
+     * execution
      */
     @Bean
     public FilterRegistrationBean<FirebaseAuthFilter> firebaseAuthFilterRegistration(FirebaseAuthFilter filter) {
@@ -104,12 +103,8 @@ public class SecurityConfig {
 
         config.setAllowedOriginPatterns(Arrays.asList(
                 System.getenv().getOrDefault("FRONTEND_ORIGIN", "http://localhost:3000"),
-                "http://localhost:*",
-                "http://127.0.0.1:*",
-                "https://*.ngrok-free.app",
                 "https://*.onrender.com",
-                "https://*.netlify.app"
-        ));
+                "https://*.netlify.app"));
 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("*", "Authorization", "Content-Type", "ngrok-skip-browser-warning"));

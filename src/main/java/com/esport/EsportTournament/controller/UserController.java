@@ -2,6 +2,7 @@ package com.esport.EsportTournament.controller;
 
 import com.esport.EsportTournament.dto.UserDTO;
 import com.esport.EsportTournament.model.Users;
+import com.esport.EsportTournament.model.TournamentResult;
 import com.esport.EsportTournament.service.NotificationService;
 import com.esport.EsportTournament.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +60,21 @@ public class UserController {
         return ResponseEntity.ok(user);
     }
 
+    @GetMapping("/me/history")
+    public ResponseEntity<List<TournamentResult>> getCurrentUserHistory(
+            Authentication authentication) {
+        String firebaseUID = getAuthenticatedUserUID(authentication);
+        log.debug("Fetching history for user: {}", firebaseUID);
+        return ResponseEntity.ok(userService.getUserHistory(firebaseUID));
+    }
+
+    @GetMapping("/{firebaseUID}/history")
+    public ResponseEntity<List<TournamentResult>> getUserHistory(
+            @PathVariable String firebaseUID) {
+        log.debug("Fetching history for user: {}", firebaseUID);
+        return ResponseEntity.ok(userService.getUserHistory(firebaseUID));
+    }
+
     // ---------------- Admin Endpoints ----------------
     @PreAuthorize("hasAuthority('PERM_MANAGE_ROLES')")
     @GetMapping("/{firebaseUID}")
@@ -113,7 +129,8 @@ public class UserController {
 
             return ResponseEntity.ok(userService.updateUserStatus(firebaseUID, status));
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid status: " + statusStr + ". Valid statuses: ACTIVE, INACTIVE, BANNED");
+            throw new IllegalArgumentException(
+                    "Invalid status: " + statusStr + ". Valid statuses: ACTIVE, INACTIVE, BANNED");
         }
     }
 
@@ -130,8 +147,7 @@ public class UserController {
                 "activeUsers", activeUsers,
                 "adminUsers", adminUsers,
                 "bannedUsers", bannedUsers,
-                "inactiveUsers", totalUsers - activeUsers - bannedUsers
-        );
+                "inactiveUsers", totalUsers - activeUsers - bannedUsers);
 
         return ResponseEntity.ok(stats);
     }

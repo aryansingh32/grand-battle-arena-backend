@@ -44,8 +44,7 @@ public class RbacService {
         for (UserRole assignment : assignments) {
             AppRole role = assignment.getRole();
             authorities.add(ROLE_PREFIX + role.getCode());
-            role.getPermissions().forEach(permission ->
-                    authorities.add(PERMISSION_PREFIX + permission.getCode()));
+            role.getPermissions().forEach(permission -> authorities.add(PERMISSION_PREFIX + permission.getCode()));
         }
 
         // Role hierarchy: add implied roles
@@ -63,6 +62,23 @@ public class RbacService {
         } else if (authorities.contains(ROLE_PREFIX + "MANAGER")
                 || authorities.contains(ROLE_PREFIX + "OPERATOR")) {
             authorities.add(ROLE_PREFIX + "USER");
+        }
+
+        // 🔥 CRITICAL FIX: Fetch permissions for ALL roles (assigned + implied)
+        // The previous loop only fetched permissions for DIRECTLY assigned roles.
+        // Now that we have the full list of roles in 'authorities', we need to get
+        // their permissions.
+        Set<String> allRoles = authorities.stream()
+                .filter(a -> a.startsWith(ROLE_PREFIX))
+                .map(a -> a.substring(ROLE_PREFIX.length()))
+                .collect(Collectors.toSet());
+
+        List<AppRole> impliedAppRoles = appRoleRepository.findAll().stream()
+                .filter(r -> allRoles.contains(r.getCode()))
+                .toList();
+
+        for (AppRole role : impliedAppRoles) {
+            role.getPermissions().forEach(permission -> authorities.add(PERMISSION_PREFIX + permission.getCode()));
         }
 
         return authorities;
@@ -123,4 +139,3 @@ public class RbacService {
         return appRoleRepository.findAll();
     }
 }
-

@@ -3,7 +3,9 @@ package com.esport.EsportTournament.service;
 import com.esport.EsportTournament.dto.UserDTO;
 import com.esport.EsportTournament.exception.ResourceNotFoundException;
 import com.esport.EsportTournament.model.Users;
+import com.esport.EsportTournament.model.TournamentResult;
 import com.esport.EsportTournament.repository.UsersRepo;
+import com.esport.EsportTournament.repository.TournamentResultRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,16 +27,15 @@ public class UserService {
     private final WalletService walletService;
     private final NotificationService notificationService;
     private final RbacService rbacService;
+    private final TournamentResultRepository tournamentResultRepository;
 
     // Email validation pattern
     private static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
-    );
+            "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     // Username validation pattern (alphanumeric, underscore, dash, 3-20 chars)
     private static final Pattern USERNAME_PATTERN = Pattern.compile(
-            "^[A-Za-z0-9_-]{3,20}$"
-    );
+            "^[A-Za-z0-9_-]{3,20}$");
 
     /**
      * Create new user with Firebase UID
@@ -44,7 +45,7 @@ public class UserService {
     public UserDTO createUser(UserDTO userDTO) {
         String firebaseUID = userDTO.getFirebaseUserUID();
         log.info("Creating new user with Firebase UID: {}", firebaseUID);
-        System.out.println(userDTO.getUserName()+" "+userDTO.getEmail()+" "+userDTO.getFirebaseUserUID());
+        System.out.println(userDTO.getUserName() + " " + userDTO.getEmail() + " " + userDTO.getFirebaseUserUID());
 
         // Enhanced validation
         validateUserInput(userDTO);
@@ -62,7 +63,8 @@ public class UserService {
             Optional<Users> userByEmail = usersRepository.findByEmail(userDTO.getEmail());
             if (userByEmail.isPresent()) {
                 Users existingEmailUser = userByEmail.get();
-                if (existingEmailUser.getFirebaseUserUID() == null || existingEmailUser.getFirebaseUserUID().isEmpty()) {
+                if (existingEmailUser.getFirebaseUserUID() == null
+                        || existingEmailUser.getFirebaseUserUID().isEmpty()) {
                     // Update existing user with Firebase UID
                     existingEmailUser.setFirebaseUserUID(firebaseUID);
                     Users updatedUser = usersRepository.save(existingEmailUser);
@@ -73,7 +75,8 @@ public class UserService {
 
                     return mapToDTO(updatedUser);
                 } else {
-                    throw new IllegalArgumentException("Email already exists with different Firebase account: " + userDTO.getEmail());
+                    throw new IllegalArgumentException(
+                            "Email already exists with different Firebase account: " + userDTO.getEmail());
                 }
             }
         }
@@ -83,7 +86,8 @@ public class UserService {
             if (usersRepository.existsByUserName(userDTO.getUserName())) {
                 // Generate unique username suggestion
                 String suggestedUsername = generateUniqueUsername(userDTO.getUserName());
-                log.warn("Username {} already exists, suggested alternative: {}", userDTO.getUserName(), suggestedUsername);
+                log.warn("Username {} already exists, suggested alternative: {}", userDTO.getUserName(),
+                        suggestedUsername);
                 throw new IllegalArgumentException("Username already exists. Suggested: " + suggestedUsername);
             }
         } else {
@@ -153,11 +157,12 @@ public class UserService {
                 email != null ? email : "user_" + firebaseUID.substring(0, 8) + "@temp.com",
                 Users.UserRole.USER,
                 Users.UserStatus.ACTIVE,
-                LocalDateTime.now()
-        );
-//        newUserDTO.setFirebaseUserUID(firebaseUID);
-//        newUserDTO.setEmail(email != null ? email : "user_" + firebaseUID.substring(0, 8) + "@temp.com");
-//        newUserDTO.setUserName(displayName != null ? displayName : "User_" + firebaseUID.substring(0, 8));
+                LocalDateTime.now());
+        // newUserDTO.setFirebaseUserUID(firebaseUID);
+        // newUserDTO.setEmail(email != null ? email : "user_" +
+        // firebaseUID.substring(0, 8) + "@temp.com");
+        // newUserDTO.setUserName(displayName != null ? displayName : "User_" +
+        // firebaseUID.substring(0, 8));
 
         log.info("Auto-creating user for Firebase UID: {}", firebaseUID);
         return createUser(newUserDTO);
@@ -311,7 +316,8 @@ public class UserService {
         if (newUserName != null && !newUserName.trim().isEmpty()) {
             // Validate username format
             if (!USERNAME_PATTERN.matcher(newUserName.trim()).matches()) {
-                throw new IllegalArgumentException("Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
+                throw new IllegalArgumentException(
+                        "Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
             }
 
             // Check username uniqueness (excluding current user)
@@ -368,18 +374,14 @@ public class UserService {
                 "registrationTrends", Map.of(
                         "last30Days", recentRegistrations30d,
                         "last7Days", recentRegistrations7d,
-                        "last24Hours", recentRegistrations1d
-                ),
+                        "last24Hours", recentRegistrations1d),
                 "userRoles", Map.of(
                         "users", total - admins,
-                        "admins", admins
-                ),
+                        "admins", admins),
                 "userStatuses", Map.of(
                         "active", active,
                         "inactive", inactive,
-                        "banned", banned
-                )
-        );
+                        "banned", banned));
     }
 
     /**
@@ -447,7 +449,8 @@ public class UserService {
 
         if (userDTO.getUserName() != null && !userDTO.getUserName().trim().isEmpty()) {
             if (!USERNAME_PATTERN.matcher(userDTO.getUserName().trim()).matches()) {
-                throw new IllegalArgumentException("Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
+                throw new IllegalArgumentException(
+                        "Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
             }
         }
     }
@@ -528,7 +531,8 @@ public class UserService {
                 !preferredUsername.equals(user.getUserName())) {
 
             if (!USERNAME_PATTERN.matcher(preferredUsername.trim()).matches()) {
-                throw new IllegalArgumentException("Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
+                throw new IllegalArgumentException(
+                        "Username must be 3-20 characters long and contain only letters, numbers, underscores, and hyphens");
             }
 
             if (usersRepository.existsByUserName(preferredUsername.trim())) {
@@ -568,17 +572,20 @@ public class UserService {
     private void sendRoleChangeNotification(String firebaseUID, Users.UserRole oldRole, Users.UserRole newRole) {
         try {
             String message = String.format("Your account role has been updated from %s to %s.", oldRole, newRole);
-            // notificationService.sendNotificationToUser(firebaseUID, "Role Updated", message, "SYSTEM");
+            // notificationService.sendNotificationToUser(firebaseUID, "Role Updated",
+            // message, "SYSTEM");
             log.debug("Role change notification sent to user: {}", firebaseUID);
         } catch (Exception e) {
             log.warn("Failed to send role change notification", e);
         }
     }
 
-    private void sendStatusChangeNotification(String firebaseUID, Users.UserStatus oldStatus, Users.UserStatus newStatus) {
+    private void sendStatusChangeNotification(String firebaseUID, Users.UserStatus oldStatus,
+            Users.UserStatus newStatus) {
         try {
             String message = String.format("Your account status has been updated from %s to %s.", oldStatus, newStatus);
-            // notificationService.sendNotificationToUser(firebaseUID, "Account Status Updated", message, "SYSTEM");
+            // notificationService.sendNotificationToUser(firebaseUID, "Account Status
+            // Updated", message, "SYSTEM");
             log.debug("Status change notification sent to user: {}", firebaseUID);
         } catch (Exception e) {
             log.warn("Failed to send status change notification", e);
@@ -588,11 +595,22 @@ public class UserService {
     private void sendUnbanNotification(String firebaseUID) {
         try {
             String message = "Your account has been reactivated. Welcome back to the platform!";
-            // notificationService.sendNotificationToUser(firebaseUID, "Account Reactivated", message, "SYSTEM");
+            // notificationService.sendNotificationToUser(firebaseUID, "Account
+            // Reactivated", message, "SYSTEM");
             log.debug("Unban notification sent to user: {}", firebaseUID);
         } catch (Exception e) {
             log.warn("Failed to send unban notification", e);
         }
+    }
+
+    /**
+     * Get user tournament history
+     */
+    @Transactional(readOnly = true)
+    public List<TournamentResult> getUserHistory(String firebaseUID) {
+        log.debug("Fetching history for user: {}", firebaseUID);
+        validateFirebaseUID(firebaseUID);
+        return tournamentResultRepository.findByFirebaseUserUIDOrderByCreatedAtDesc(firebaseUID);
     }
 
     private UserDTO mapToDTO(Users user) {
@@ -602,7 +620,6 @@ public class UserService {
                 user.getEmail(),
                 user.getRole(),
                 user.getStatus(),
-                user.getCreatedAt()
-        );
+                user.getCreatedAt());
     }
 }

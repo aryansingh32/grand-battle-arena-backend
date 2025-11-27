@@ -4,7 +4,9 @@ import com.esport.EsportTournament.dto.SlotsDTO;
 import com.esport.EsportTournament.dto.TournamentsDTO;
 import com.esport.EsportTournament.exception.ResourceNotFoundException;
 import com.esport.EsportTournament.model.Tournaments;
+import com.esport.EsportTournament.model.TournamentResult;
 import com.esport.EsportTournament.repository.TournamentRepo;
+import com.esport.EsportTournament.repository.TournamentResultRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 public class TournamentService {
 
     private final TournamentRepo tournamentRepo;
+    private final TournamentResultRepository tournamentResultRepository;
     private final SlotService slotService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -57,7 +60,7 @@ public class TournamentService {
         tournament.setGame(dto.getGame());
         tournament.setGameId(dto.getGameId());
         tournament.setGamePassword(dto.getGamePassword());
-        
+
         // Save rules as JSON string
         if (dto.getRules() != null && !dto.getRules().isEmpty()) {
             try {
@@ -66,7 +69,7 @@ public class TournamentService {
                 log.warn("Error serializing rules: {}", e.getMessage());
             }
         }
-        
+
         // Set prize fields
         tournament.setPerKillReward(dto.getPerKillReward());
         tournament.setFirstPrize(dto.getFirstPrize());
@@ -83,10 +86,10 @@ public class TournamentService {
 
         return mapToDTO(saved);
     }
+
     /**
      * Update Game ID and Password for a tournament
      */
-
 
     public Map<String, String> getGameCredentials(int tournamentId) {
         log.info("🎮 Fetching game credentials for tournament ID: {}", tournamentId);
@@ -106,32 +109,32 @@ public class TournamentService {
         // Option 1: Return empty strings instead of null
         return Map.of(
                 "gameId", gameId != null ? gameId : "",
-                "gamePassword", gamePassword != null ? gamePassword : ""
-        );
+                "gamePassword", gamePassword != null ? gamePassword : "");
 
-    /* Option 2: Use HashMap if you want to allow nulls
-    Map<String, String> credentials = new HashMap<>();
-    credentials.put("gameId", gameId);
-    credentials.put("gamePassword", gamePassword);
-    return credentials;
-    */
+        /*
+         * Option 2: Use HashMap if you want to allow nulls
+         * Map<String, String> credentials = new HashMap<>();
+         * credentials.put("gameId", gameId);
+         * credentials.put("gamePassword", gamePassword);
+         * return credentials;
+         */
 
-    /* Option 3: Throw exception if credentials not set
-    if (gameId == null || gameId.trim().isEmpty() ||
-        gamePassword == null || gamePassword.trim().isEmpty()) {
-        throw new IllegalStateException(
-            "Game credentials not set for tournament ID: " + tournamentId +
-            ". Please ask admin to set credentials first."
-        );
+        /*
+         * Option 3: Throw exception if credentials not set
+         * if (gameId == null || gameId.trim().isEmpty() ||
+         * gamePassword == null || gamePassword.trim().isEmpty()) {
+         * throw new IllegalStateException(
+         * "Game credentials not set for tournament ID: " + tournamentId +
+         * ". Please ask admin to set credentials first."
+         * );
+         * }
+         * 
+         * return Map.of(
+         * "gameId", gameId,
+         * "gamePassword", gamePassword
+         * );
+         */
     }
-
-    return Map.of(
-        "gameId", gameId,
-        "gamePassword", gamePassword
-    );
-    */
-    }
-
 
     @Transactional
     public TournamentsDTO updateGameCredentials(int tournamentId, String gameId, String gamePassword) {
@@ -158,11 +161,7 @@ public class TournamentService {
         List<SlotsDTO> slotList = slotService.getSlots(tournamentId);
         List<String> participants = slotList.stream().map(SlotsDTO::getFirebaseUserUID).toList();
 
-        notificationService.sendGameCredentials(tournamentId,gameId,gamePassword,participants);
-
-
-
-
+        notificationService.sendGameCredentials(tournamentId, gameId, gamePassword, participants);
 
         return mapToDTO(updated);
     }
@@ -243,15 +242,18 @@ public class TournamentService {
         return mapToDTO(tournament);
     }
 
-//    @Transactional(readOnly = true)
-//    public List<TournamentsDTO> getTournamentByGameType(TournamentFilterDTO tournamentFilterDTO) {
-//        log.debug("Fetching tournament with GameType OR StartTime: {}", tournamentFilterDTO.getGameType() + tournamentFilterDTO.getStartTime());
-//
-//
-//        return tournamentRepo.findByGameORStartTime(tournamentFilterDTO.getGameType(),tournamentFilterDTO.getStartTime()).stream()
-//                .map(this::mapToDTO)
-//                .collect(Collectors.toList());
-//    }
+    // @Transactional(readOnly = true)
+    // public List<TournamentsDTO> getTournamentByGameType(TournamentFilterDTO
+    // tournamentFilterDTO) {
+    // log.debug("Fetching tournament with GameType OR StartTime: {}",
+    // tournamentFilterDTO.getGameType() + tournamentFilterDTO.getStartTime());
+    //
+    //
+    // return
+    // tournamentRepo.findByGameORStartTime(tournamentFilterDTO.getGameType(),tournamentFilterDTO.getStartTime()).stream()
+    // .map(this::mapToDTO)
+    // .collect(Collectors.toList());
+    // }
     /**
      * ADDED: Update tournament status
      */
@@ -265,6 +267,13 @@ public class TournamentService {
 
         Tournaments tournament = tournamentRepo.findById(tournamentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tournament not found with ID: " + tournamentId));
+
+        // ✅ NEW: Trigger refunds if cancelled
+        if (newStatus == Tournaments.TournamentStatus.CANCELLED &&
+                tournament.getStatus() != Tournaments.TournamentStatus.CANCELLED) {
+            log.warn("🚨 Tournament {} is being CANCELLED. Initiating refund process...", tournamentId);
+            slotService.processTournamentCancellation(tournamentId);
+        }
 
         tournament.setStatus(newStatus);
         tournament.setUpdatedAt(LocalDateTime.now());
@@ -300,28 +309,74 @@ public class TournamentService {
     @Transactional
     public TournamentsDTO updateTournamentScoreboard(int tournamentId, List<Map<String, Object>> scoreboardData) {
         log.info("Updating scoreboard for tournament: {}", tournamentId);
-        
+
         Tournaments tournament = tournamentRepo.findById(tournamentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tournament not found: " + tournamentId));
-        
+
         // Convert scoreboard data to DTO format
         List<TournamentsDTO.ScoreboardEntry> scoreboard = scoreboardData.stream()
                 .map(data -> {
                     TournamentsDTO.ScoreboardEntry entry = new TournamentsDTO.ScoreboardEntry();
                     entry.setPlayerName((String) data.get("playerName"));
                     entry.setTeamName((String) data.get("teamName"));
-                    entry.setKills(data.get("kills") != null ? ((Number) data.get("kills")).intValue() : null);
-                    entry.setCoinsEarned(data.get("coinsEarned") != null ? ((Number) data.get("coinsEarned")).intValue() : null);
-                    entry.setPlacement(data.get("placement") != null ? ((Number) data.get("placement")).intValue() : null);
+                    entry.setKills(data.get("kills") != null ? ((Number) data.get("kills")).intValue() : 0);
+                    entry.setCoinsEarned(
+                            data.get("coinsEarned") != null ? ((Number) data.get("coinsEarned")).intValue() : 0);
+                    entry.setPlacement(data.get("placement") != null ? ((Number) data.get("placement")).intValue() : 0);
                     return entry;
                 })
                 .collect(Collectors.toList());
-        
+
+        // 🔥 CRITICAL FIX: Persist scoreboard to database
+        // First, clear existing results for this tournament to avoid duplicates if
+        // updated multiple times
+        tournamentResultRepository.deleteByTournament_Id(tournamentId);
+
+        List<TournamentResult> results = new ArrayList<>();
+
+        // We need to map player names to Firebase UIDs.
+        // Ideally, the frontend should send UIDs. If not, we try to match via Slots.
+        List<SlotsDTO> slots = slotService.getSlots(tournamentId);
+        Map<String, String> playerNameToUidMap = slots.stream()
+                .filter(s -> s.getPlayerName() != null && s.getFirebaseUserUID() != null)
+                .collect(Collectors.toMap(SlotsDTO::getPlayerName, SlotsDTO::getFirebaseUserUID, (a, b) -> a));
+
+        for (TournamentsDTO.ScoreboardEntry entry : scoreboard) {
+            String uid = playerNameToUidMap.get(entry.getPlayerName());
+
+            // If we can't find the UID by name, we might have an issue.
+            // For now, we skip if UID is missing, or we could try to look it up if passed
+            // in data.
+            // Let's check if the input data has 'firebaseUserUID' or 'uid'
+            if (uid == null) {
+                // Try to find in the original map if passed
+                // This requires the frontend to send it.
+                // For now, we log a warning.
+                log.warn("⚠️ Could not find UID for player: {} in tournament: {}", entry.getPlayerName(), tournamentId);
+                continue;
+            }
+
+            results.add(TournamentResult.builder()
+                    .tournament(tournament)
+                    .firebaseUserUID(uid)
+                    .playerName(entry.getPlayerName())
+                    .teamName(entry.getTeamName())
+                    .kills(entry.getKills())
+                    .placement(entry.getPlacement())
+                    .coinsEarned(entry.getCoinsEarned())
+                    .build());
+        }
+
+        if (!results.isEmpty()) {
+            tournamentResultRepository.saveAll(results);
+            log.info("✅ Saved {} tournament results to database", results.size());
+        }
+
         // Store scoreboard as JSON in a separate field or extend the model
         // For now, we'll store it in the DTO only (can be extended to database later)
         TournamentsDTO dto = mapToDTO(tournament);
         dto.setScoreboard(scoreboard);
-        
+
         log.info("Scoreboard updated for tournament {}: {} entries", tournamentId, scoreboard.size());
         return dto;
     }
@@ -342,11 +397,8 @@ public class TournamentService {
                 "upcoming", upcoming,
                 "ongoing", ongoing,
                 "completed", completed,
-                "cancelled", cancelled
-        );
+                "cancelled", cancelled);
     }
-
-
 
     /**
      * Map entity to DTO with participants and additional fields
@@ -362,7 +414,7 @@ public class TournamentService {
         dto.setGame(t.getGame());
         dto.setMaxPlayers(t.getMaxPlayers());
         dto.setStartTime(t.getStartTime());
-        
+
         // 🔥 CRITICAL: Ensure teamSize is never null - default to SOLO if null
         String teamSize = t.getTeamSize();
         if (teamSize == null || teamSize.trim().isEmpty()) {
@@ -373,15 +425,17 @@ public class TournamentService {
             teamSize = teamSize.trim().toUpperCase();
         }
         dto.setTeamSize(teamSize);
-        
+
         dto.setStatus(t.getStatus());
         dto.setGameId(t.getGameId());
         dto.setGamePassword(t.getGamePassword());
-        
+
         // Parse and set rules from JSON string
         if (t.getRules() != null && !t.getRules().trim().isEmpty()) {
             try {
-                List<String> rulesList = objectMapper.readValue(t.getRules(), new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+                List<String> rulesList = objectMapper.readValue(t.getRules(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+                        });
                 dto.setRules(rulesList);
             } catch (Exception e) {
                 log.warn("Error parsing rules for tournament {}: {}", t.getId(), e.getMessage());
@@ -390,13 +444,13 @@ public class TournamentService {
         } else {
             dto.setRules(new ArrayList<>());
         }
-        
+
         // Set prize fields
         dto.setPerKillReward(t.getPerKillReward());
         dto.setFirstPrize(t.getFirstPrize());
         dto.setSecondPrize(t.getSecondPrize());
         dto.setThirdPrize(t.getThirdPrize());
-        
+
         // Populate participants from slots
         try {
             List<SlotsDTO> slots = slotService.getSlots(t.getId());
@@ -405,8 +459,7 @@ public class TournamentService {
                     .map(slot -> new TournamentsDTO.ParticipantInfo(
                             slot.getPlayerName(),
                             slot.getSlotNumber(),
-                            slot.getFirebaseUserUID()
-                    ))
+                            slot.getFirebaseUserUID()))
                     .collect(Collectors.toList());
             dto.setParticipants(participants);
             dto.setRegisteredPlayers(participants.size());
@@ -415,10 +468,10 @@ public class TournamentService {
             dto.setParticipants(new ArrayList<>());
             dto.setRegisteredPlayers(0);
         }
-        
+
         // Scoreboard and prize fields are optional and can be set by admin
         // They will be populated from database if columns exist, or left empty
-        
+
         return dto;
     }
 }
