@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 
 @Slf4j
 @Service
@@ -25,12 +27,13 @@ public class AppConfigService {
      * Get app version
      */
     @Transactional(readOnly = true)
+    @Cacheable("app_version")
     public Map<String, String> getAppVersion() {
         Map<String, String> version = new HashMap<>();
         version.put("minSupported", getConfigValue("app_version_min_supported", "1.1.0"));
         version.put("latest", getConfigValue("app_version_latest", "1.3.2"));
-        version.put("playStoreUrl", getConfigValue("app_version_play_store_url", 
-            "https://play.google.com/store/apps/details?id=com.esport.tournament"));
+        version.put("playStoreUrl", getConfigValue("app_version_play_store_url",
+                "https://play.google.com/store/apps/details?id=com.esport.tournament"));
         return version;
     }
 
@@ -38,6 +41,7 @@ public class AppConfigService {
      * Update app version
      */
     @Transactional
+    @CacheEvict(value = "app_version", allEntries = true)
     public Map<String, String> updateAppVersion(Map<String, String> version, String adminUID) {
         if (version.containsKey("minSupported")) {
             setConfigValue("app_version_min_supported", version.get("minSupported"), adminUID);
@@ -56,6 +60,7 @@ public class AppConfigService {
      * Get filters
      */
     @Transactional(readOnly = true)
+    @Cacheable("app_filters")
     public Map<String, List<String>> getFilters() {
         String filtersJson = getConfigValue("filters", null);
         if (filtersJson == null) {
@@ -63,7 +68,8 @@ public class AppConfigService {
             return getDefaultFilters();
         }
         try {
-            return objectMapper.readValue(filtersJson, new TypeReference<Map<String, List<String>>>() {});
+            return objectMapper.readValue(filtersJson, new TypeReference<Map<String, List<String>>>() {
+            });
         } catch (Exception e) {
             log.warn("Error parsing filters: {}", e.getMessage());
             return getDefaultFilters();
@@ -74,6 +80,7 @@ public class AppConfigService {
      * Update filters
      */
     @Transactional
+    @CacheEvict(value = "app_filters", allEntries = true)
     public Map<String, List<String>> updateFilters(Map<String, List<String>> filters, String adminUID) {
         try {
             String filtersJson = objectMapper.writeValueAsString(filters);
@@ -84,6 +91,19 @@ public class AppConfigService {
             throw new RuntimeException("Failed to save filters", e);
         }
         return getFilters();
+    }
+
+    @Transactional(readOnly = true)
+    @Cacheable("app_logo")
+    public String getLogoUrl() {
+        return getConfigValue("app_logo_url", "");
+    }
+
+    @Transactional
+    @CacheEvict(value = "app_logo", allEntries = true)
+    public String updateLogoUrl(String logoUrl, String adminUID) {
+        setConfigValue("app_logo_url", logoUrl, adminUID);
+        return logoUrl;
     }
 
     private String getConfigValue(String key, String defaultValue) {
@@ -111,4 +131,3 @@ public class AppConfigService {
         return filters;
     }
 }
-

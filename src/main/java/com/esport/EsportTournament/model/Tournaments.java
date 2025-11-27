@@ -60,6 +60,9 @@ public class Tournaments {
     @Column(name = "third_prize")
     private Integer thirdPrize;
 
+    @Column(name = "stream_url")
+    private String streamUrl;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -124,14 +127,20 @@ public class Tournaments {
 
     // 🔥 HELPER: Get players per team
     public int getPlayersPerTeam() {
-        if (teamSize == null) return 1;
+        if (teamSize == null)
+            return 1;
 
         switch (teamSize.toUpperCase()) {
-            case "SOLO": return 1;
-            case "DUO": return 2;
-            case "SQUAD": return 4;
-            case "HEXA": return 6;
-            default: return 1;
+            case "SOLO":
+                return 1;
+            case "DUO":
+                return 2;
+            case "SQUAD":
+                return 4;
+            case "HEXA":
+                return 6;
+            default:
+                return 1;
         }
     }
 

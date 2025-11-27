@@ -6,6 +6,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
+import org.springframework.cache.annotation.EnableCaching;
+
+@SpringBootApplication
+@EnableScheduling
+@EnableCaching
 public class EsportTournamentApplication {
 
 	public static void main(String[] args) {

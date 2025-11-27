@@ -11,6 +11,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +33,7 @@ public class TournamentService {
     private final TournamentResultRepository tournamentResultRepository;
     private final SlotService slotService;
     private final NotificationService notificationService;
+    private final com.esport.EsportTournament.util.EncryptionUtil encryptionUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -37,6 +41,7 @@ public class TournamentService {
      * FIXED: Enhanced validation and error handling
      */
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament_stats" }, allEntries = true)
     public TournamentsDTO createTournament(TournamentsDTO dto) {
         log.info("Creating tournament with teamSize: {}", dto.getTeamSize());
 
@@ -58,8 +63,9 @@ public class TournamentService {
         tournament.setStatus(dto.getStatus());
         tournament.setMaxPlayers(dto.getMaxPlayers());
         tournament.setGame(dto.getGame());
-        tournament.setGameId(dto.getGameId());
-        tournament.setGamePassword(dto.getGamePassword());
+        // Encrypt credentials
+        tournament.setGameId(encryptionUtil.encrypt(dto.getGameId()));
+        tournament.setGamePassword(encryptionUtil.encrypt(dto.getGamePassword()));
 
         // Save rules as JSON string
         if (dto.getRules() != null && !dto.getRules().isEmpty()) {
@@ -75,6 +81,7 @@ public class TournamentService {
         tournament.setFirstPrize(dto.getFirstPrize());
         tournament.setSecondPrize(dto.getSecondPrize());
         tournament.setThirdPrize(dto.getThirdPrize());
+        tournament.setStreamUrl(dto.getStreamUrl());
 
         Tournaments saved = tournamentRepo.save(tournament);
 
@@ -97,10 +104,11 @@ public class TournamentService {
         TournamentsDTO tournamentsDTO = getTournamentById(tournamentId);
 
         // 🔥 CRITICAL FIX: Check for null values before creating map
-        String gameId = tournamentsDTO.getGameId();
-        String gamePassword = tournamentsDTO.getGamePassword();
+        // Decrypt credentials
+        String gameId = encryptionUtil.decrypt(tournamentsDTO.getGameId());
+        String gamePassword = encryptionUtil.decrypt(tournamentsDTO.getGamePassword());
 
-        // Log the values for debugging
+        // Log the values for debugging (masked)
         log.debug("Tournament {} - GameId: {}, GamePassword: {}",
                 tournamentId,
                 gameId != null ? "***SET***" : "NULL",
@@ -137,6 +145,7 @@ public class TournamentService {
     }
 
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament", "tournament_stats" }, allEntries = true)
     public TournamentsDTO updateGameCredentials(int tournamentId, String gameId, String gamePassword) {
         log.info("Updating game credentials for tournament ID: {}", tournamentId);
 
@@ -151,8 +160,8 @@ public class TournamentService {
         Tournaments tournament = tournamentRepo.findById(tournamentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tournament not found with ID: " + tournamentId));
 
-        tournament.setGameId(gameId);
-        tournament.setGamePassword(gamePassword);
+        tournament.setGameId(encryptionUtil.encrypt(gameId));
+        tournament.setGamePassword(encryptionUtil.encrypt(gamePassword));
         tournament.setUpdatedAt(LocalDateTime.now());
 
         Tournaments updated = tournamentRepo.save(tournament);
@@ -170,6 +179,7 @@ public class TournamentService {
      * Change the start time of a tournament
      */
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament", "tournament_stats" }, allEntries = true)
     public TournamentsDTO updateStartTime(int tournamentId, LocalDateTime newStartTime) {
         log.info("Updating start time for tournament ID: {}", tournamentId);
 
@@ -203,6 +213,7 @@ public class TournamentService {
      * Get all tournaments
      */
     @Transactional(readOnly = true)
+    @Cacheable("tournaments")
     public List<TournamentsDTO> getAllTournaments() {
         log.debug("Fetching all tournaments");
         return tournamentRepo.findAllByOrderByStartTimeDesc().stream()
@@ -225,6 +236,7 @@ public class TournamentService {
      * ADDED: Get upcoming tournaments (for user view)
      */
     @Transactional(readOnly = true)
+    @Cacheable("upcoming_tournaments")
     public List<TournamentsDTO> getUpcomingTournaments() {
         return getTournamentsByStatus(Tournaments.TournamentStatus.UPCOMING);
     }
@@ -233,6 +245,7 @@ public class TournamentService {
      * ADDED: Get tournament by ID
      */
     @Transactional(readOnly = true)
+    @Cacheable(value = "tournament", key = "#tournamentId")
     public TournamentsDTO getTournamentById(int tournamentId) {
         log.debug("Fetching tournament with ID: {}", tournamentId);
 
@@ -258,6 +271,7 @@ public class TournamentService {
      * ADDED: Update tournament status
      */
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament", "tournament_stats" }, allEntries = true)
     public TournamentsDTO updateTournamentStatus(int tournamentId, Tournaments.TournamentStatus newStatus) {
         log.info("Updating status for tournament ID: {} to {}", tournamentId, newStatus);
 
@@ -288,6 +302,7 @@ public class TournamentService {
      * Delete a tournament
      */
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament", "tournament_stats" }, allEntries = true)
     public void deleteTournament(int tournamentId) {
         log.warn("Deleting tournament ID: {}", tournamentId);
 
@@ -307,6 +322,7 @@ public class TournamentService {
      * Update tournament scoreboard
      */
     @Transactional
+    @CacheEvict(value = { "tournaments", "upcoming_tournaments", "tournament", "tournament_stats" }, allEntries = true)
     public TournamentsDTO updateTournamentScoreboard(int tournamentId, List<Map<String, Object>> scoreboardData) {
         log.info("Updating scoreboard for tournament: {}", tournamentId);
 
@@ -342,7 +358,25 @@ public class TournamentService {
                 .collect(Collectors.toMap(SlotsDTO::getPlayerName, SlotsDTO::getFirebaseUserUID, (a, b) -> a));
 
         for (TournamentsDTO.ScoreboardEntry entry : scoreboard) {
-            String uid = playerNameToUidMap.get(entry.getPlayerName());
+            // 🔥 CRITICAL FIX: Prioritize UID from input if available
+            String uid = null;
+
+            // Try to find UID in the original map data first
+            for (Map<String, Object> data : scoreboardData) {
+                if (entry.getPlayerName().equals(data.get("playerName"))) {
+                    if (data.containsKey("firebaseUserUID")) {
+                        uid = (String) data.get("firebaseUserUID");
+                    } else if (data.containsKey("uid")) {
+                        uid = (String) data.get("uid");
+                    }
+                    break;
+                }
+            }
+
+            // Fallback to name lookup if not found in input
+            if (uid == null) {
+                uid = playerNameToUidMap.get(entry.getPlayerName());
+            }
 
             // If we can't find the UID by name, we might have an issue.
             // For now, we skip if UID is missing, or we could try to look it up if passed
@@ -385,6 +419,7 @@ public class TournamentService {
      * ADDED: Get tournament statistics
      */
     @Transactional(readOnly = true)
+    @Cacheable("tournament_stats")
     public java.util.Map<String, Object> getTournamentStats() {
         long total = tournamentRepo.count();
         long upcoming = tournamentRepo.countByStatus(Tournaments.TournamentStatus.UPCOMING);
@@ -450,6 +485,7 @@ public class TournamentService {
         dto.setFirstPrize(t.getFirstPrize());
         dto.setSecondPrize(t.getSecondPrize());
         dto.setThirdPrize(t.getThirdPrize());
+        dto.setStreamUrl(t.getStreamUrl());
 
         // Populate participants from slots
         try {
@@ -471,6 +507,21 @@ public class TournamentService {
 
         // Scoreboard and prize fields are optional and can be set by admin
         // They will be populated from database if columns exist, or left empty
+        try {
+            List<TournamentResult> results = tournamentResultRepository.findByTournament_Id(t.getId());
+            List<TournamentsDTO.ScoreboardEntry> scoreboard = results.stream()
+                    .map(r -> new TournamentsDTO.ScoreboardEntry(
+                            r.getPlayerName(),
+                            r.getTeamName(),
+                            r.getKills(),
+                            r.getCoinsEarned(),
+                            r.getPlacement()))
+                    .collect(Collectors.toList());
+            dto.setScoreboard(scoreboard);
+        } catch (Exception e) {
+            log.warn("Error fetching scoreboard for tournament {}: {}", t.getId(), e.getMessage());
+            dto.setScoreboard(new ArrayList<>());
+        }
 
         return dto;
     }
