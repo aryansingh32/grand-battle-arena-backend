@@ -13,6 +13,10 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 /**
  * ✅ NEW: Comprehensive Audit Logging Service
@@ -102,7 +106,8 @@ public class AuditLogService {
      */
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void logTournamentOperation(String action, String userId, int tournamentId, Map<String, String> additionalDetails) {
+    public void logTournamentOperation(String action, String userId, int tournamentId,
+            Map<String, String> additionalDetails) {
         Map<String, String> details = new HashMap<>(additionalDetails);
         details.put("tournamentId", String.valueOf(tournamentId));
 
@@ -160,8 +165,8 @@ public class AuditLogService {
             log.setIpAddress(getCurrentIpAddress());
 
             auditLogRepo.save(log);
-//
-//            log.info("📝 Audit log created: {} - {} by {}", category, action, userId);
+            //
+            // log.info("📝 Audit log created: {} - {} by {}", category, action, userId);
         } catch (Exception e) {
             log.error("Failed to create audit log", e);
             // Don't throw exception - logging should not break main flow
@@ -199,6 +204,24 @@ public class AuditLogService {
                 .stream()
                 .limit(limit)
                 .toList();
+    }
+
+    /**
+     * Get paginated logs with filters
+     */
+    @Transactional(readOnly = true)
+    public Page<AuditLog> getLogs(int page, int size, String action, String userId) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
+
+        if (userId != null && !userId.isEmpty() && action != null && !action.isEmpty()) {
+            return auditLogRepo.findByUserIdAndAction(userId, action, pageable);
+        } else if (userId != null && !userId.isEmpty()) {
+            return auditLogRepo.findByUserId(userId, pageable);
+        } else if (action != null && !action.isEmpty()) {
+            return auditLogRepo.findByAction(action, pageable);
+        }
+
+        return auditLogRepo.findAll(pageable);
     }
 
     /**

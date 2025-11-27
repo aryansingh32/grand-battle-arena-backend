@@ -33,6 +33,7 @@ public class AdminController {
     private final TransactionTableService transactionService;
     private final NotificationService notificationService;
     private final SlotService slotService;
+    private final AuditLogService auditLogService;
 
     // ================= DASHBOARD & ANALYTICS =================
 
@@ -59,9 +60,7 @@ public class AdminController {
                     "notifications", notificationStats,
                     "systemStatus", Map.of(
                             "status", "OPERATIONAL",
-                            "lastUpdate", LocalDateTime.now()
-                    )
-            );
+                            "lastUpdate", LocalDateTime.now()));
 
             return ResponseEntity.ok(dashboard);
         } catch (Exception e) {
@@ -83,8 +82,7 @@ public class AdminController {
                 "redis", "HEALTHY",
                 "firebase", "HEALTHY",
                 "uptime", System.currentTimeMillis(),
-                "timestamp", LocalDateTime.now()
-        );
+                "timestamp", LocalDateTime.now());
 
         return ResponseEntity.ok(health);
     }
@@ -130,8 +128,7 @@ public class AdminController {
                     "totalElements", filteredUsers.size(),
                     "totalPages", (filteredUsers.size() + size - 1) / size,
                     "currentPage", page,
-                    "pageSize", size
-            );
+                    "pageSize", size);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -175,8 +172,7 @@ public class AdminController {
             return ResponseEntity.ok(Map.of(
                     "message", "Bulk status update completed",
                     "totalRequested", userIds.size(),
-                    "successfulUpdates", updatedCount
-            ));
+                    "successfulUpdates", updatedCount));
         } catch (Exception e) {
             log.error("Error during bulk status update", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -204,8 +200,7 @@ public class AdminController {
                     "transactionCount", transactions.size(),
                     "bookedSlotsCount", bookedSlots.size(),
                     "recentTransactions", transactions.stream().limit(5).toList(),
-                    "recentBookings", bookedSlots.stream().limit(5).toList()
-            );
+                    "recentBookings", bookedSlots.stream().limit(5).toList());
 
             return ResponseEntity.ok(activity);
         } catch (Exception e) {
@@ -247,8 +242,7 @@ public class AdminController {
             return ResponseEntity.ok(Map.of(
                     "message", "Bulk tournament status update completed",
                     "totalRequested", tournamentIds.size(),
-                    "successfulUpdates", updatedCount
-            ));
+                    "successfulUpdates", updatedCount));
         } catch (Exception e) {
             log.error("Error during bulk tournament update", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -280,26 +274,25 @@ public class AdminController {
         }
     }
 
-    private static Map<String, Object> getStringObjectMap(TournamentsDTO tournament, long bookedSlots, Map<String, Object> slotSummary) {
+    private static Map<String, Object> getStringObjectMap(TournamentsDTO tournament, long bookedSlots,
+            Map<String, Object> slotSummary) {
         int entryFee = tournament.getEntryFee();
         long totalRevenue = bookedSlots * entryFee;
 
-        return
-                Map.of(
+        return Map.of(
                 "tournament", tournament,
                 "slotSummary", slotSummary,
                 "revenue", Map.of(
                         "totalRevenue", totalRevenue,
                         "expectedRevenue", tournament.getMaxPlayers() * entryFee,
-                        "revenuePercentage", tournament.getMaxPlayers() > 0 ?
-                                (totalRevenue * 100.0) / (tournament.getMaxPlayers() * entryFee) : 0
-                ),
+                        "revenuePercentage",
+                        tournament.getMaxPlayers() > 0
+                                ? (totalRevenue * 100.0) / (tournament.getMaxPlayers() * entryFee)
+                                : 0),
                 "participation", Map.of(
-                        "fillRate", tournament.getMaxPlayers() > 0 ?
-                                (bookedSlots * 100.0) / tournament.getMaxPlayers() : 0,
-                        "remainingSlots", tournament.getMaxPlayers() - bookedSlots
-                )
-        );
+                        "fillRate",
+                        tournament.getMaxPlayers() > 0 ? (bookedSlots * 100.0) / tournament.getMaxPlayers() : 0,
+                        "remainingSlots", tournament.getMaxPlayers() - bookedSlots));
     }
 
     // ================= FINANCIAL MANAGEMENT =================
@@ -326,9 +319,7 @@ public class AdminController {
                     "reportPeriod", Map.of(
                             "startDate", startDate != null ? startDate : "All time",
                             "endDate", endDate != null ? endDate : "Current",
-                            "generatedAt", LocalDateTime.now()
-                    )
-            );
+                            "generatedAt", LocalDateTime.now()));
 
             return ResponseEntity.ok(financialOverview);
         } catch (Exception e) {
@@ -379,8 +370,7 @@ public class AdminController {
                     "message", "Emergency wallet adjustment completed successfully",
                     "operation", operation,
                     "amount", amount.toString(),
-                    "reason", reason != null ? reason : "No reason provided"
-            ));
+                    "reason", reason != null ? reason : "No reason provided"));
         } catch (Exception e) {
             log.error("Error during emergency wallet adjustment", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -416,8 +406,7 @@ public class AdminController {
             return ResponseEntity.ok(Map.of(
                     "message", "Emergency broadcast sent successfully",
                     "title", title,
-                    "broadcastBy", adminUID
-            ));
+                    "broadcastBy", adminUID));
         } catch (Exception e) {
             log.error("Error sending emergency broadcast", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -441,16 +430,14 @@ public class AdminController {
 
         String fullMessage = String.format(
                 "🔧 MAINTENANCE NOTICE: %s\n⏰ Scheduled: %s\n⏳ Duration: %d minutes\nWe apologize for any inconvenience.",
-                message, scheduledTime, durationMinutes
-        );
+                message, scheduledTime, durationMinutes);
 
         try {
             notificationService.createNotification("Scheduled Maintenance", fullMessage,
                     com.esport.EsportTournament.model.Notifications.TargetAudience.ALL, adminUID);
 
             return ResponseEntity.ok(Map.of(
-                    "message", "Maintenance notification sent successfully"
-            ));
+                    "message", "Maintenance notification sent successfully"));
         } catch (Exception e) {
             log.error("Error sending maintenance notification", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -471,31 +458,24 @@ public class AdminController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String adminId) {
 
-        // In a real implementation, you'd have an audit log service
-        // For now, returning placeholder data
-        Map<String, Object> auditLogs = Map.of(
-                "content", List.of(
-                        Map.of(
-                                "timestamp", LocalDateTime.now().minusHours(1),
-                                "adminId", "admin123",
-                                "action", "USER_STATUS_UPDATE",
-                                "targetId", "user456",
-                                "details", "Changed status from ACTIVE to BANNED"
-                        ),
-                        Map.of(
-                                "timestamp", LocalDateTime.now().minusHours(2),
-                                "adminId", "admin123",
-                                "action", "WALLET_ADJUSTMENT",
-                                "targetId", "user789",
-                                "details", "Added 1000 coins - Reason: Compensation"
-                        )
-                ),
-                "totalElements", 2,
-                "currentPage", page,
-                "pageSize", size
-        );
+        try {
+            // Use adminId as userId filter if provided
+            org.springframework.data.domain.Page<com.esport.EsportTournament.model.AuditLog> logsPage = auditLogService
+                    .getLogs(page, size, action, adminId);
 
-        return ResponseEntity.ok(auditLogs);
+            Map<String, Object> response = Map.of(
+                    "content", logsPage.getContent(),
+                    "totalElements", logsPage.getTotalElements(),
+                    "totalPages", logsPage.getTotalPages(),
+                    "currentPage", logsPage.getNumber(),
+                    "pageSize", logsPage.getSize());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching audit logs", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch audit logs"));
+        }
     }
 
     /**
@@ -523,8 +503,7 @@ public class AdminController {
                     "generatedAt", LocalDateTime.now(),
                     "period", Map.of("start", startDate, "end", endDate),
                     "status", "COMPLETED",
-                    "downloadUrl", "/api/admin/reports/download/" + "RPT_" + System.currentTimeMillis()
-            );
+                    "downloadUrl", "/api/admin/reports/download/" + "RPT_" + System.currentTimeMillis());
 
             return ResponseEntity.ok(report);
         } catch (Exception e) {
@@ -545,27 +524,22 @@ public class AdminController {
                         "enabled", false,
                         "message", "",
                         "scheduledStart", null,
-                        "estimatedDuration", 0
-                ),
+                        "estimatedDuration", 0),
                 "features", Map.of(
                         "userRegistration", true,
                         "tournamentBooking", true,
                         "walletTransactions", true,
-                        "notifications", true
-                ),
+                        "notifications", true),
                 "limits", Map.of(
                         "maxCoinBalance", 1000000,
                         "maxTransactionAmount", 10000,
                         "maxSlotsPerUser", 5,
-                        "maxTournamentParticipants", 100
-                ),
+                        "maxTournamentParticipants", 100),
                 "security", Map.of(
                         "requireEmailVerification", true,
                         "enableTwoFactorAuth", false,
                         "maxLoginAttempts", 5,
-                        "sessionTimeoutMinutes", 60
-                )
-        );
+                        "sessionTimeoutMinutes", 60));
 
         return ResponseEntity.ok(settings);
     }
@@ -585,8 +559,7 @@ public class AdminController {
         return ResponseEntity.ok(Map.of(
                 "message", "System settings updated successfully",
                 "updatedBy", adminUID,
-                "timestamp", LocalDateTime.now().toString()
-        ));
+                "timestamp", LocalDateTime.now().toString()));
     }
 
     // ================= BULK OPERATIONS =================
@@ -618,8 +591,7 @@ public class AdminController {
                     "format", format,
                     "initiatedBy", adminUID,
                     "initiatedAt", LocalDateTime.now(),
-                    "estimatedCompletion", LocalDateTime.now().plusMinutes(5)
-            );
+                    "estimatedCompletion", LocalDateTime.now().plusMinutes(5));
 
             return ResponseEntity.accepted().body(exportInfo);
         } catch (Exception e) {
@@ -655,8 +627,7 @@ public class AdminController {
                     "itemsDeleted", 150,
                     "spaceSaved", "45.2 MB",
                     "executedBy", adminUID,
-                    "executedAt", LocalDateTime.now()
-            );
+                    "executedAt", LocalDateTime.now());
 
             return ResponseEntity.ok(cleanupResult);
         } catch (Exception e) {

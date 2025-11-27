@@ -20,24 +20,33 @@ public class Tournaments {
     private int id;
 
     private String name;
+    @Column(name = "map_type")
     private String mapType;
+    @Column(name = "start_time")
     private LocalDateTime startTime;
+    @Column(name = "entry_fees")
     private int entryFees;
+    @Column(name = "prize_pool")
     private int prizePool;
 
     // 🔥 CRITICAL FIX: Store as String for better compatibility
     @Column(name = "team_size", length = 20, nullable = false)
     private String teamSize; // Stores "SOLO", "DUO", "SQUAD", "HEXA"
 
+    @Column(name = "max_players")
     private int maxPlayers;
     private String game;
+    @Column(name = "image_link")
     private String imageLink;
 
     @Enumerated(EnumType.STRING)
     private TournamentStatus status;
 
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    @Column(name = "game_id")
     private String gameId;
+    @Column(name = "game_password")
     private String gamePassword;
 
     @Column(name = "created_at")

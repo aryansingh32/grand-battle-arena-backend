@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Data  // ADDED: Lombok @Data annotation for getters, setters, toString, equals, hashCode
+@Data // ADDED: Lombok @Data annotation for getters, setters, toString, equals,
+      // hashCode
 public class Notifications {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -22,6 +23,7 @@ public class Notifications {
     private String message; // FIXED: Changed from 'Message' to 'message' (consistent naming)
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "target_audience")
     private TargetAudience targetAudience;
 
     // ADDED: Timestamp fields for better tracking
@@ -45,6 +47,7 @@ public class Notifications {
             updatedAt = LocalDateTime.now();
         }
     }
+
     @Column(name = "device_token", length = 500)
     private String deviceToken;
 
@@ -64,5 +67,4 @@ public class Notifications {
         REGISTERED
     }
 
-    
 }

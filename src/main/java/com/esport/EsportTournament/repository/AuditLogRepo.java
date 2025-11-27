@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * ✅ NEW: Audit Log Repository
@@ -62,4 +64,10 @@ public interface AuditLogRepo extends JpaRepository<AuditLog, Long> {
      * Find logs by IP address
      */
     List<AuditLog> findByIpAddressOrderByTimestampDesc(String ipAddress);
+
+    Page<AuditLog> findByUserId(String userId, Pageable pageable);
+
+    Page<AuditLog> findByAction(String action, Pageable pageable);
+
+    Page<AuditLog> findByUserIdAndAction(String userId, String action, Pageable pageable);
 }
