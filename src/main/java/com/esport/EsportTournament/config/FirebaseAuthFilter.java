@@ -24,8 +24,8 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+            HttpServletResponse response,
+            FilterChain filterChain)
             throws ServletException, IOException {
 
         String requestURI = request.getRequestURI();
@@ -33,7 +33,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         log.info("🔍 FirebaseAuthFilter processing: {} {}", method, requestURI);
 
         // Skip authentication for public endpoints
-        if (isPublicEndpoint(requestURI)) {
+        if (isPublicEndpoint(requestURI, method)) {
             log.info("✅ Skipping authentication for public endpoint: {}", requestURI);
             filterChain.doFilter(request, response);
             return;
@@ -57,7 +57,8 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                     log.error("💥 Firebase app not initialized! Cannot verify token.");
                     response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                     response.setContentType("application/json");
-                    response.getWriter().write("{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase not initialized\"}");
+                    response.getWriter().write(
+                            "{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase not initialized\"}");
                     return;
                 }
 
@@ -70,20 +71,19 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 log.info("✅ Successfully authenticated Firebase user: {} ({})", firebaseUID, email);
 
                 // Create authentication object with Firebase UID as principal
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                firebaseUID,
-                                null,
-                                Collections.emptyList() // Empty authorities for now, will be set by RoleInjectionFilter
-                        );
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        firebaseUID,
+                        null,
+                        Collections.emptyList() // Empty authorities for now, will be set by RoleInjectionFilter
+                );
 
                 authentication.setDetails(decodedToken);
-                
+
                 // Store in request attributes for downstream use
                 request.setAttribute("firebaseUid", firebaseUID);
                 request.setAttribute("firebaseEmail", email);
                 request.setAttribute("firebaseToken", decodedToken);
-                
+
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.info("🔒 Set authentication in SecurityContext for user: {}", firebaseUID);
@@ -92,20 +92,23 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 log.error("❌ Invalid Firebase token: {} - Error code: {}", e.getMessage(), e.getErrorCode());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
-                response.getWriter().write("{\"error\":\"Invalid or expired token\",\"details\":\"" + e.getMessage() + "\"}");
+                response.getWriter()
+                        .write("{\"error\":\"Invalid or expired token\",\"details\":\"" + e.getMessage() + "\"}");
                 return;
             } catch (IllegalStateException e) {
                 // This catches the "FirebaseApp with name [DEFAULT] doesn't exist" error
                 log.error("💥 Firebase not initialized: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                 response.setContentType("application/json");
-                response.getWriter().write("{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase initialization failed\"}");
+                response.getWriter().write(
+                        "{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase initialization failed\"}");
                 return;
             } catch (Exception e) {
                 log.error("💥 Error processing Firebase token", e);
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
-                response.getWriter().write("{\"error\":\"Authentication failed\",\"details\":\"" + e.getMessage() + "\"}");
+                response.getWriter()
+                        .write("{\"error\":\"Authentication failed\",\"details\":\"" + e.getMessage() + "\"}");
                 return;
             }
         } else {
@@ -117,16 +120,20 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private boolean isPublicEndpoint(String uri) {
+    private boolean isPublicEndpoint(String uri, String method) {
+        // Specific checks for endpoints that are only public for certain methods
+        if (uri.equals("/api/banners")) {
+            return "GET".equalsIgnoreCase(method);
+        }
+
         boolean isPublic = uri.startsWith("/api/public/") ||
                 uri.equals("/actuator/health") ||
                 uri.startsWith("/actuator/") ||
                 uri.startsWith("/ws/") ||
-                uri.equals("/api/banners") ||
                 uri.equals("/api/filters") ||
                 uri.equals("/api/app/version");
 
-        log.debug("🌐 Endpoint {} is public: {}", uri, isPublic);
+        log.debug("🌐 Endpoint {} ({}) is public: {}", uri, method, isPublic);
         return isPublic;
     }
 
