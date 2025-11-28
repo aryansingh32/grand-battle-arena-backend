@@ -58,8 +58,8 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=5 \
 
 # Memory-optimized JVM settings for Render Free Tier (512MB)
 ENV JAVA_OPTS="-Xms128m \
-               -Xmx350m \
-               -XX:MaxMetaspaceSize=100m \
+               -Xmx256m \
+               -XX:MaxMetaspaceSize=256m \
                -XX:ReservedCodeCacheSize=32m \
                -XX:+UseSerialGC \
                -XX:+TieredCompilation \
