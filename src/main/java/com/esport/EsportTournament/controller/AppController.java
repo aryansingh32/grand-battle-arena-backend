@@ -35,7 +35,7 @@ public class AppController {
      * Update app version (admin only)
      * PUT /api/app/version
      */
-    @PreAuthorize("hasAuthority('PERM_MANAGE_TOURNAMENTS')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/app/version")
     public ResponseEntity<Map<String, String>> updateAppVersion(
             @RequestBody Map<String, String> version,
@@ -61,7 +61,7 @@ public class AppController {
      * Update filters (admin only)
      * PUT /api/filters
      */
-    @PreAuthorize("hasAuthority('PERM_MANAGE_TOURNAMENTS')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/filters")
     public ResponseEntity<Map<String, List<String>>> updateFilters(
             @RequestBody Map<String, List<String>> filters,
@@ -79,4 +79,3 @@ public class AppController {
         return (String) authentication.getPrincipal();
     }
 }
-
