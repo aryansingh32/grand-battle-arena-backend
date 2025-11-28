@@ -29,8 +29,8 @@ public class NotificationService {
 
     @Transactional
     public NotificationsDTO createNotification(String title, String message,
-                                               Notifications.TargetAudience targetAudience,
-                                               String adminUID) {
+            Notifications.TargetAudience targetAudience,
+            String adminUID) {
         validateAdmin(adminUID);
 
         if (title == null || title.trim().isEmpty()) {
@@ -121,8 +121,8 @@ public class NotificationService {
 
     @Transactional
     public void sendTournamentNotification(int tournamentId, String title, String message,
-                                           List<String> participantUIDs, String notificationType,
-                                           Map<String, String> additionalData) {
+            List<String> participantUIDs, String notificationType,
+            Map<String, String> additionalData) {
         if (participantUIDs == null || participantUIDs.isEmpty()) {
             log.warn("No participants to send notification to for tournament {}", tournamentId);
             return;
@@ -154,7 +154,7 @@ public class NotificationService {
     }
 
     public void sendGameCredentials(int tournamentId, String gameId, String gamePassword,
-                                    List<String> participantUIDs) {
+            List<String> participantUIDs) {
         String title = "Tournament Game Credentials";
         String message = String.format("Tournament #%d has started! Game ID and password are ready.", tournamentId);
 
@@ -168,7 +168,7 @@ public class NotificationService {
     }
 
     public void sendTournamentReminder(int tournamentId, String tournamentName,
-                                       List<String> participantUIDs, int minutesBefore) {
+            List<String> participantUIDs, int minutesBefore) {
         String title = "Tournament Reminder";
         String message = String.format("Tournament '%s' starts in %d minutes! Get ready!",
                 tournamentName, minutesBefore);
@@ -182,7 +182,7 @@ public class NotificationService {
     }
 
     public void sendTournamentResult(int tournamentId, String resultMessage,
-                                     List<String> participantUIDs) {
+            List<String> participantUIDs) {
         sendTournamentNotification(tournamentId, "Tournament Results", resultMessage,
                 participantUIDs, "tournament_result", null);
     }
@@ -220,14 +220,16 @@ public class NotificationService {
         sendPushNotificationToUser(firebaseUID, "Reward Distribution", rewardMessage, data);
     }
 
-    // ------------------------ Firebase Messaging Implementation ------------------------
-// ------------------------ Firebase Messaging Implementation ------------------------
+    // ------------------------ Firebase Messaging Implementation
+    // ------------------------
+    // ------------------------ Firebase Messaging Implementation
+    // ------------------------
 
     private void sendPushNotificationByAudience(Notifications notification) {
         try {
-            log.info("📢 Sending push notification to audience: {} - Title: {}", 
+            log.info("📢 Sending push notification to audience: {} - Title: {}",
                     notification.getTargetAudience(), notification.getTitle());
-            
+
             List<String> targetTokens = getDeviceTokensByAudience(notification.getTargetAudience());
 
             if (targetTokens.isEmpty()) {
@@ -235,7 +237,8 @@ public class NotificationService {
                 return;
             }
 
-            log.info("📱 Found {} device tokens for audience: {}", targetTokens.size(), notification.getTargetAudience());
+            log.info("📱 Found {} device tokens for audience: {}", targetTokens.size(),
+                    notification.getTargetAudience());
 
             // Prepare notification details
             String title = notification.getTitle();
@@ -248,7 +251,7 @@ public class NotificationService {
 
             // Send to multiple tokens
             sendBatchNotifications(targetTokens, title, body, data);
-            
+
             log.info("✅ Push notification sent successfully to {} devices", targetTokens.size());
 
         } catch (Exception e) {
@@ -258,10 +261,11 @@ public class NotificationService {
     }
 
     private void sendBatchNotifications(List<String> tokens,
-                                        String title,
-                                        String body,
-                                        Map<String, String> data) {
-        if (tokens.isEmpty()) return;
+            String title,
+            String body,
+            Map<String, String> data) {
+        if (tokens.isEmpty())
+            return;
 
         try {
             // Build multicast message with proper Android/iOS config
@@ -271,8 +275,7 @@ public class NotificationService {
                             com.google.firebase.messaging.Notification.builder()
                                     .setTitle(title)
                                     .setBody(body)
-                                    .build()
-                    )
+                                    .build())
                     .putAllData(data != null ? data : Collections.emptyMap())
                     .setAndroidConfig(
                             AndroidConfig.builder()
@@ -281,12 +284,10 @@ public class NotificationService {
                                             AndroidNotification.builder()
                                                     .setColor("#4CAF50")
                                                     .setSound("default")
-                                                    .setChannelId("tournament_channel")
+                                                    .setChannelId("tournament_channel_v2")
                                                     .setClickAction("FLUTTER_NOTIFICATION_CLICK")
-                                                    .build()
-                                    )
-                                    .build()
-                    )
+                                                    .build())
+                                    .build())
                     .setApnsConfig(
                             ApnsConfig.builder()
                                     .setAps(
@@ -295,15 +296,12 @@ public class NotificationService {
                                                             ApsAlert.builder()
                                                                     .setTitle(title)
                                                                     .setBody(body)
-                                                                    .build()
-                                                    )
+                                                                    .build())
                                                     .setSound("default")
                                                     .setBadge(1)
                                                     .setContentAvailable(true)
-                                                    .build()
-                                    )
-                                    .build()
-                    )
+                                                    .build())
+                                    .build())
                     .build();
 
             // Verify Firebase is initialized before sending
@@ -343,9 +341,9 @@ public class NotificationService {
     }
 
     private void sendPushNotificationToUser(String firebaseUID,
-                                            String title,
-                                            String message,
-                                            Map<String, String> additionalData) {
+            String title,
+            String message,
+            Map<String, String> additionalData) {
         try {
             // Get user's device token
             String deviceToken = getUserDeviceToken(firebaseUID);
@@ -361,8 +359,7 @@ public class NotificationService {
                             com.google.firebase.messaging.Notification.builder()
                                     .setTitle(title)
                                     .setBody(message)
-                                    .build()
-                    )
+                                    .build())
                     .setAndroidConfig(
                             AndroidConfig.builder()
                                     .setPriority(AndroidConfig.Priority.HIGH)
@@ -370,12 +367,10 @@ public class NotificationService {
                                             AndroidNotification.builder()
                                                     .setColor("#4CAF50")
                                                     .setSound("default")
-                                                    .setChannelId("tournament_channel")
+                                                    .setChannelId("tournament_channel_v2")
                                                     .setClickAction("FLUTTER_NOTIFICATION_CLICK")
-                                                    .build()
-                                    )
-                                    .build()
-                    )
+                                                    .build())
+                                    .build())
                     .setApnsConfig(
                             ApnsConfig.builder()
                                     .setAps(
@@ -384,15 +379,12 @@ public class NotificationService {
                                                             ApsAlert.builder()
                                                                     .setTitle(title)
                                                                     .setBody(message)
-                                                                    .build()
-                                                    )
+                                                                    .build())
                                                     .setSound("default")
                                                     .setBadge(1)
                                                     .setContentAvailable(true)
-                                                    .build()
-                                    )
-                                    .build()
-                    );
+                                                    .build())
+                                    .build());
 
             // Add additional data (if any)
             if (additionalData != null && !additionalData.isEmpty()) {
@@ -407,7 +399,7 @@ public class NotificationService {
                 log.error("❌ CRITICAL: Firebase is not initialized! Cannot send notification.");
                 throw new IllegalStateException("Firebase Admin SDK is not initialized");
             }
-            
+
             // Send message
             String response = FirebaseMessaging.getInstance().send(firebaseMessage);
             log.info("✅ Successfully sent push notification to [{}]: Message ID: {}", firebaseUID, response);
@@ -425,33 +417,32 @@ public class NotificationService {
         }
     }
 
-
-//    private void sendBatchNotifications(List<String> tokens,
-//                                        String title,
-//                                        String body,
-//                                        Map<String, String> data) {
-//        if (tokens.isEmpty()) return;
-//
-//        try {
-//            MulticastMessage message = MulticastMessage.builder()
-//                    .addAllTokens(tokens)
-//                    .setNotification(com.google.firebase.messaging.Notification.builder()
-//                            .setTitle(title)
-//                            .setBody(body)
-//                            .build())
-//                    .putAllData(data != null ? data : Collections.emptyMap())
-//                    .build();
-//
-//            BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
-//
-//            log.info("Batch notification sent: {} successful, {} failed",
-//                    response.getSuccessCount(), response.getFailureCount());
-//
-//        } catch (Exception e) {
-//            log.error("Error sending batch notifications: {}", e.getMessage());
-//        }
-//    }
-
+    // private void sendBatchNotifications(List<String> tokens,
+    // String title,
+    // String body,
+    // Map<String, String> data) {
+    // if (tokens.isEmpty()) return;
+    //
+    // try {
+    // MulticastMessage message = MulticastMessage.builder()
+    // .addAllTokens(tokens)
+    // .setNotification(com.google.firebase.messaging.Notification.builder()
+    // .setTitle(title)
+    // .setBody(body)
+    // .build())
+    // .putAllData(data != null ? data : Collections.emptyMap())
+    // .build();
+    //
+    // BatchResponse response =
+    // FirebaseMessaging.getInstance().sendMulticast(message);
+    //
+    // log.info("Batch notification sent: {} successful, {} failed",
+    // response.getSuccessCount(), response.getFailureCount());
+    //
+    // } catch (Exception e) {
+    // log.error("Error sending batch notifications: {}", e.getMessage());
+    // }
+    // }
 
     // ------------------------ Device Token Management ------------------------
 
@@ -472,12 +463,12 @@ public class NotificationService {
             usersRepo.save(user);
 
             log.info("✅ Updated device token for user: {} (token length: {})", firebaseUID, deviceToken.length());
-            
+
             // Send a test notification to verify token works
             try {
-                sendPushNotificationToUser(firebaseUID, "Device Registered", 
-                    "Your device has been successfully registered for push notifications!", 
-                    Map.of("type", "device_registered"));
+                sendPushNotificationToUser(firebaseUID, "Device Registered",
+                        "Your device has been successfully registered for push notifications!",
+                        Map.of("type", "device_registered"));
                 log.info("✅ Test notification sent to verify device token");
             } catch (Exception e) {
                 log.warn("⚠️ Could not send test notification: {}", e.getMessage());
@@ -559,11 +550,14 @@ public class NotificationService {
         List<Notifications> all = notificationRepo.findAll();
         return Map.of(
                 "total", all.size(),
-                "forAllUsers", all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ALL).count(),
-                "forUsers", all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.USER).count(),
-                "forAdmins", all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ADMIN).count(),
-                "forRegistered", all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.REGISTERED).count()
-        );
+                "forAllUsers",
+                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ALL).count(),
+                "forUsers",
+                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.USER).count(),
+                "forAdmins",
+                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ADMIN).count(),
+                "forRegistered",
+                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.REGISTERED).count());
     }
 
     // ------------------------ Helpers ------------------------
