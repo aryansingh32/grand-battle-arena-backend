@@ -155,13 +155,18 @@ public class NotificationService {
 
     public void sendGameCredentials(int tournamentId, String gameId, String gamePassword,
             List<String> participantUIDs) {
-        String title = "Tournament Game Credentials";
-        String message = String.format("Tournament #%d has started! Game ID and password are ready.", tournamentId);
+        String title = "🎮 Tournament Game Credentials";
+        // ENHANCED: Show actual credentials in notification message
+        String message = String.format(
+                "Your Custom ID: %s\nCustom Password: %s\nJoin fast!",
+                gameId, gamePassword);
 
         Map<String, String> data = new HashMap<>();
         data.put("gameId", gameId);
         data.put("gamePassword", gamePassword);
-        data.put("tournamentName", "Tournament #" + tournamentId); // You can pass actual name
+        data.put("tournamentName", "Tournament #" + tournamentId);
+        data.put("action_copy_id", gameId); // For copy action
+        data.put("action_type", "copy_game_id"); // Action identifier
 
         sendTournamentNotification(tournamentId, title, message, participantUIDs,
                 "tournament_credentials", data);
@@ -218,6 +223,162 @@ public class NotificationService {
         Map<String, String> data = new HashMap<>();
         data.put("type", "reward_distribution");
         sendPushNotificationToUser(firebaseUID, "Reward Distribution", rewardMessage, data);
+    }
+
+    // ------------------------ Enhanced Notifications ------------------------
+
+    /**
+     * Notify all users when a new tournament is created
+     */
+    public void sendTournamentCreatedNotification(int tournamentId, String tournamentName,
+            int prizePool, int entryFee, String startTime) {
+        String title = "🏆 New Tournament Created!";
+        String message = String.format(
+                "Tournament: %s\nPrize Pool: ₹%,d\nEntry Fee: ₹%,d\nStarts: %s",
+                tournamentName, prizePool, entryFee, startTime);
+
+        // Get all active users
+        List<String> allUserTokens = getAllUserTokens();
+
+        Map<String, String> data = new HashMap<>();
+        data.put("tournamentId", String.valueOf(tournamentId));
+        data.put("tournamentName", tournamentName);
+
+        sendBroadcastNotification(title, message, allUserTokens, "tournament_created", data);
+    }
+
+    /**
+     * Remind all users to book tournament slots
+     */
+    public void sendBookingReminderNotification(int tournamentId, String tournamentName, int remainingSlots) {
+        String title = "⚡ Slots Filling Fast!";
+        String message = String.format(
+                "Tournament: %s\nOnly %d slots remaining!\nBook now before it's full!",
+                tournamentName, remainingSlots);
+
+        List<String> allUserTokens = getAllUserTokens();
+
+        Map<String, String> data = new HashMap<>();
+        data.put("tournamentId", String.valueOf(tournamentId));
+        data.put("tournamentName", tournamentName);
+        data.put("remainingSlots", String.valueOf(remainingSlots));
+
+        sendBroadcastNotification(title, message, allUserTokens, "tournament_booking_reminder", data);
+    }
+
+    /**
+     * Send custom notification to all users or specific users
+     */
+    public void sendCustomNotification(String title, String message, List<String> targetUserUIDs, String adminUID) {
+        validateAdmin(adminUID);
+
+        // Save to database
+        Notifications notification = new Notifications();
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setTargetAudience(
+                targetUserUIDs == null || targetUserUIDs.isEmpty() 
+                    ? Notifications.TargetAudience.ALL 
+                    : Notifications.TargetAudience.USER);
+        notification.setCreatedBy(adminUID);
+        notificationRepo.save(notification);
+
+        Map<String, String> data = new HashMap<>();
+        data.put("type", "custom_notification");
+
+        if (targetUserUIDs == null || targetUserUIDs.isEmpty()) {
+            // Send to all users
+            List<String> allUserTokens = getAllUserTokens();
+            sendBroadcastNotification(title, message, allUserTokens, "custom_notification", data);
+        } else {
+            // Send to specific users
+            for (String userUID : targetUserUIDs) {
+                sendPushNotificationToUser(userUID, title, message, data);
+            }
+        }
+
+        log.info("Custom notification sent: '{}' to {} users", title,
+                targetUserUIDs == null ? "all" : targetUserUIDs.size());
+    }
+
+    /**
+     * Send event notification to all users
+     */
+    public void sendEventNotification(String eventTitle, String  eventMessage, String eventDate, String adminUID) {
+        validateAdmin(adminUID);
+
+        String title = "🎉 " + eventTitle;
+        String message = String.format("%s\nEvent Date: %s", eventMessage, eventDate);
+
+        // Save to database
+        Notifications notification = new Notifications();
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setTargetAudience(Notifications.TargetAudience.ALL);
+        notification.setCreatedBy(adminUID);
+        notificationRepo.save(notification);
+
+        List<String> allUserTokens = getAllUserTokens();
+
+        Map<String, String> data = new HashMap<>();
+        data.put("type", "event_notification");
+        data.put("eventDate", eventDate);
+
+        sendBroadcastNotification(title, message, allUserTokens, "event_notification", data);
+    }
+
+    /**
+     * Send tournament rules to participants
+     */
+    public void sendTournamentRulesNotification(int tournamentId, List<String> rules,
+            List<String> participantUIDs) {
+        String title = "📋 Tournament Rules";
+        
+        // Format rules as numbered list
+        StringBuilder rulesText = new StringBuilder();
+        for (int i = 0; i < rules.size(); i++) {
+            rulesText.append(String.format("%d. %s\n", i + 1, rules.get(i)));
+        }
+
+        Map<String, String> data = new HashMap<>();
+        data.put("tournamentId", String.valueOf(tournamentId));
+
+        sendTournamentNotification(tournamentId, title, rulesText.toString().trim(),
+                participantUIDs, "tournament_rules", data);
+    }
+
+    /**
+     * Helper method to send broadcast notifications
+     */
+    private void sendBroadcastNotification(String title, String message, List<String> userUIDs,
+            String type, Map<String, String> additionalData) {
+        if (userUIDs == null || userUIDs.isEmpty()) {
+            log.warn("No users to send broadcast notification");
+            return;
+        }
+
+        Map<String, String> data = new HashMap<>();
+        data.put("type", type);
+        if (additionalData != null) {
+            data.putAll(additionalData);
+        }
+
+        // Send to all users
+        for (String userUID : userUIDs) {
+            sendPushNotificationToUser(userUID, title, message, data);
+        }
+
+        log.info("Broadcast notification '{}' sent to {} users", title, userUIDs.size());
+    }
+
+    /**
+     * Get all active user tokens
+     */
+    private List<String> getAllUserTokens() {
+        return usersRepo.findAll().stream()
+                .map(com.esport.EsportTournament.model.Users::getFirebaseUserUID)
+                .filter(uid -> uid != null && !uid.trim().isEmpty())
+                .collect(java.util.stream.Collectors.toList());
     }
 
     // ------------------------ Firebase Messaging Implementation

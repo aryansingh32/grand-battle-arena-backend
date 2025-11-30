@@ -165,6 +165,113 @@ public class NotificationController {
     }
 
     // ===========================================================================
+    // Enhanced Notifications
+    // ===========================================================================
+
+    @PreAuthorize("hasAuthority('PERM_MANAGE_NOTIFICATIONS')")
+    @PostMapping("/tournament/{tournamentId}/created")
+    public ResponseEntity<String> sendTournamentCreated(
+            @PathVariable int tournamentId,
+            @Valid @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+
+        String adminUID = getAuthenticatedUserUID(authentication);
+        String tournamentName = (String) request.get("tournamentName");
+        Integer prizePool = (Integer) request.get("prizePool");
+        Integer entryFee = (Integer) request.get("entryFee");
+        String startTime = (String) request.get("startTime");
+
+        if (tournamentName == null || prizePool == null || entryFee == null || startTime == null) {
+            return ResponseEntity.badRequest().body("Missing required fields");
+        }
+
+        notificationService.sendTournamentCreatedNotification(tournamentId, tournamentName,
+                prizePool, entryFee, startTime);
+        return ResponseEntity.ok("Tournament created notification sent to all users");
+    }
+
+    @PreAuthorize("hasAuthority('PERM_MANAGE_NOTIFICATIONS')")
+    @PostMapping("/tournament/{tournamentId}/booking-reminder")
+    public ResponseEntity<String> sendBookingReminder(
+            @PathVariable int tournamentId,
+            @Valid @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+
+        String adminUID = getAuthenticatedUserUID(authentication);
+        String tournamentName = (String) request.get("tournamentName");
+        Integer remainingSlots = (Integer) request.get("remainingSlots");
+
+        if (tournamentName == null || remainingSlots == null) {
+            return ResponseEntity.badRequest().body("Missing required fields");
+        }
+
+        notificationService.sendBookingReminderNotification(tournamentId, tournamentName, remainingSlots);
+        return ResponseEntity.ok("Booking reminder sent to all users");
+    }
+
+    @PreAuthorize("hasAuthority('PERM_MANAGE_NOTIFICATIONS')")
+    @PostMapping("/custom")
+    public ResponseEntity<String> sendCustomNotification(
+            @Valid @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+
+        String adminUID = getAuthenticatedUserUID(authentication);
+        String title = (String) request.get("title");
+        String message = (String) request.get("message");
+        List<String> targetUserUIDs = (List<String>) request.get("targetUserUIDs");
+
+        if (title == null || title.trim().isEmpty() || message == null || message.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("Title and message are required");
+        }
+
+        notificationService.sendCustomNotification(title, message, targetUserUIDs, adminUID);
+        
+        String response = targetUserUIDs == null || targetUserUIDs.isEmpty()
+                ? "Custom notification sent to all users"
+                : String.format("Custom notification sent to %d users", targetUserUIDs.size());
+        
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasAuthority('PERM_MANAGE_NOTIFICATIONS')")
+    @PostMapping("/event")
+    public ResponseEntity<String> sendEventNotification(
+            @Valid @RequestBody Map<String, String> request,
+            Authentication authentication) {
+
+        String adminUID = getAuthenticatedUserUID(authentication);
+        String eventTitle = request.get("eventTitle");
+        String eventMessage = request.get("eventMessage");
+        String eventDate = request.get("eventDate");
+
+        if (eventTitle == null || eventMessage == null || eventDate == null) {
+            return ResponseEntity.badRequest().body("All event fields are required");
+        }
+
+        notificationService.sendEventNotification(eventTitle, eventMessage, eventDate, adminUID);
+        return ResponseEntity.ok("Event notification sent to all users");
+    }
+
+    @PreAuthorize("hasAuthority('PERM_MANAGE_NOTIFICATIONS')")
+    @PostMapping("/tournament/{tournamentId}/rules")
+    public ResponseEntity<String> sendTournamentRules(
+            @PathVariable int tournamentId,
+            @Valid @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+
+        String adminUID = getAuthenticatedUserUID(authentication);
+        List<String> rules = (List<String>) request.get("rules");
+        List<String> participantUIDs = (List<String>) request.get("participantUIDs");
+
+        if (rules == null || rules.isEmpty() || participantUIDs == null || participantUIDs.isEmpty()) {
+            return ResponseEntity.badRequest().body("Rules and participant list are required");
+        }
+
+        notificationService.sendTournamentRulesNotification(tournamentId, rules, participantUIDs);
+        return ResponseEntity.ok("Tournament rules sent to " + participantUIDs.size() + " participants");
+    }
+
+    // ===========================================================================
     // User Notification Access
     // ===========================================================================
 
