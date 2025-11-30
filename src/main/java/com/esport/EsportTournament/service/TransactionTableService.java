@@ -91,8 +91,8 @@ public class TransactionTableService {
      * ✅ FIXED: Create withdrawal with proper balance check and locking
      */
     @Transactional(isolation = Isolation.SERIALIZABLE)
-    public TransactionTableDTO createWithdrawalRequest(String firebaseUID, int amount) {
-        log.info("🔵 Creating withdrawal request: user={}, amount={}", firebaseUID, amount);
+    public TransactionTableDTO createWithdrawalRequest(String firebaseUID, int amount, String upiId) {
+        log.info("🔵 Creating withdrawal request: user={}, amount={}, upiId={}", firebaseUID, amount, upiId);
 
         if (amount <= 0) {
             throw new IllegalArgumentException("Withdrawal amount must be positive");
@@ -113,6 +113,11 @@ public class TransactionTableService {
 
         // Generate unique transaction UID
         String transactionUID = "WD_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        
+        // Append UPI ID if provided
+        if (upiId != null && !upiId.trim().isEmpty()) {
+            transactionUID += "_" + upiId.trim();
+        }
 
         // Create withdrawal transaction
         TransactionTable transaction = new TransactionTable();

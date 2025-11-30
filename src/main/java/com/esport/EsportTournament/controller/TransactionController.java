@@ -3,6 +3,7 @@ package com.esport.EsportTournament.controller;
 import com.esport.EsportTournament.dto.CustomRequestDTO;
 import com.esport.EsportTournament.dto.DepositRequestDTO;
 import com.esport.EsportTournament.dto.TransactionTableDTO;
+import com.esport.EsportTournament.dto.WithdrawRequestDTO;
 import com.esport.EsportTournament.model.TransactionTable;
 import com.esport.EsportTournament.service.TransactionTableService;
 import lombok.RequiredArgsConstructor;
@@ -54,10 +55,10 @@ public class TransactionController {
      */
     @PostMapping("/withdraw")
     public ResponseEntity<TransactionTableDTO> createWithdrawalRequest(
-            @RequestBody Map<String, Integer> requestBody,
+            @RequestBody WithdrawRequestDTO request,
             Authentication authentication) {
 
-        Integer amount = requestBody.get("amount");
+        Integer amount = request.getAmount();
         if (amount == null || amount <= 0) {
             throw new IllegalArgumentException("Amount must be positive");
         }
@@ -65,7 +66,11 @@ public class TransactionController {
         String firebaseUID = getAuthenticatedUserUID(authentication);
         log.info("Creating withdrawal request for user: {} amount: {}", firebaseUID, amount);
 
-        TransactionTableDTO transaction = transactionService.createWithdrawalRequest(firebaseUID, amount);
+        TransactionTableDTO transaction = transactionService.createWithdrawalRequest(
+                firebaseUID, 
+                amount, 
+                request.getTransactionUID() // Pass UPI ID
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(transaction);
     }
 
