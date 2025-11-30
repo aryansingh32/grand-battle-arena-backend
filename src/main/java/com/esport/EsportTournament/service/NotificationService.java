@@ -471,7 +471,7 @@ public class NotificationService {
                 throw new IllegalStateException("Firebase Admin SDK is not initialized");
             }
 
-            BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
+            BatchResponse response = FirebaseMessaging.getInstance().sendEachForMulticast(message);
 
             log.info("📢 Batch notification sent: {} successful, {} failed",
                     response.getSuccessCount(), response.getFailureCount());
