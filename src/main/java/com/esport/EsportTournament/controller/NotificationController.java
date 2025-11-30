@@ -3,6 +3,7 @@ package com.esport.EsportTournament.controller;
 import com.esport.EsportTournament.dto.NotificationsDTO;
 import com.esport.EsportTournament.model.Notifications;
 import com.esport.EsportTournament.service.NotificationService;
+import com.esport.EsportTournament.service.TournamentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final TournamentService tournamentService;
 
     // ===========================================================================
     // Admin Notification Management
@@ -76,12 +78,19 @@ public class NotificationController {
             Authentication authentication) {
 
         String adminUID = getAuthenticatedUserUID(authentication);
-        String gameId = (String) request.get("gameId");
-        String gamePassword = (String) request.get("gamePassword");
         List<String> participantUIDs = (List<String>) request.get("participantUIDs");
 
-        if (gameId == null || gamePassword == null || participantUIDs == null || participantUIDs.isEmpty()) {
-            return ResponseEntity.badRequest().body("Missing required fields");
+        if (participantUIDs == null || participantUIDs.isEmpty()) {
+            return ResponseEntity.badRequest().body("Missing participant list");
+        }
+
+        // Fetch decrypted credentials from service
+        Map<String, String> credentials = tournamentService.getGameCredentials(tournamentId);
+        String gameId = credentials.get("gameId");
+        String gamePassword = credentials.get("gamePassword");
+
+        if (gameId == null || gameId.isEmpty() || gamePassword == null || gamePassword.isEmpty()) {
+            return ResponseEntity.badRequest().body("Game credentials not set for this tournament");
         }
 
         notificationService.sendGameCredentials(tournamentId, gameId, gamePassword, participantUIDs);
