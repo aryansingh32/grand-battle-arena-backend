@@ -147,8 +147,7 @@ public class TransactionTableService {
     public TransactionTableDTO approveTransaction(String transactionId, String adminUID) {
         log.info("🔵 Admin {} approving transaction: {}", adminUID, transactionId);
 
-        TransactionTable transaction = transactionRepo.findByTransactionUID(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+        TransactionTable transaction = findTransactionByIdOrUid(transactionId);
 
         if (transaction.getStatus() != TransactionTable.TransactionStatus.PENDING) {
             throw new IllegalStateException("Transaction is not pending: " + transaction.getStatus());
@@ -212,8 +211,7 @@ public class TransactionTableService {
     public TransactionTableDTO rejectTransaction(String transactionId, String adminUID) {
         log.info("🔵 Admin {} rejecting transaction: {}", adminUID, transactionId);
 
-        TransactionTable transaction = transactionRepo.findByTransactionUID(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+        TransactionTable transaction = findTransactionByIdOrUid(transactionId);
 
         if (transaction.getStatus() != TransactionTable.TransactionStatus.PENDING) {
             throw new IllegalStateException("Transaction is not pending: " + transaction.getStatus());
@@ -239,8 +237,7 @@ public class TransactionTableService {
     public void cancelPendingTransaction(String transactionId, String firebaseUID) {
         log.info("🔵 User {} cancelling transaction: {}", firebaseUID, transactionId);
 
-        TransactionTable transaction = transactionRepo.findByTransactionUID(transactionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + transactionId));
+        TransactionTable transaction = findTransactionByIdOrUid(transactionId);
 
         // Verify ownership
         if (!transaction.getUserId().getFirebaseUserUID().equals(firebaseUID)) {
@@ -331,6 +328,19 @@ public class TransactionTableService {
                         .filter(t -> t.getStatus() == TransactionTable.TransactionStatus.COMPLETED)
                         .count()
         );
+    }
+
+    private TransactionTable findTransactionByIdOrUid(String idOrUid) {
+        // Try parsing as ID first
+        try {
+            int id = Integer.parseInt(idOrUid);
+            return transactionRepo.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + idOrUid));
+        } catch (NumberFormatException e) {
+            // Not a number, try as UID
+            return transactionRepo.findByTransactionUID(idOrUid)
+                    .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + idOrUid));
+        }
     }
 
     /**

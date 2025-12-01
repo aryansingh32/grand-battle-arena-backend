@@ -131,7 +131,11 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 uri.startsWith("/actuator/") ||
                 uri.startsWith("/ws/") ||
                 uri.equals("/api/filters") ||
-                uri.equals("/api/app/version");
+                uri.equals("/api/filters");
+
+        if (uri.equals("/api/app/version")) {
+            return "GET".equalsIgnoreCase(method);
+        }
 
         log.debug("🌐 Endpoint {} ({}) is public: {}", uri, method, isPublic);
         return isPublic;
