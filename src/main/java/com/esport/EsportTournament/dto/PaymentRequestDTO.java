@@ -27,7 +27,4 @@ public class PaymentRequestDTO {
     @NotBlank(message = "UPI QR Link is required")
     private String upiIdQrLink;
 
-    @NotBlank(message = "Admin password is required")
-    private String adminPassword;
 }
-

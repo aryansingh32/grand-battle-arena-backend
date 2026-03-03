@@ -44,19 +44,7 @@ public class PaymentService {
         // Default hash is for password "SECURE_ADMIN_2024" - CHANGE THIS IN PRODUCTION
     }
 
-    /**
-     * ✅ FIXED: Secure password verification
-     */
-    private void verifyAdminPassword(String password) {
-        if (password == null || password.trim().isEmpty()) {
-            throw new UnauthorizedException("Admin password is required");
-        }
 
-        if (!passwordEncoder.matches(password, adminPasswordHash)) {
-            log.warn("⚠️ Failed admin authentication attempt");
-            throw new UnauthorizedException("Invalid admin password");
-        }
-    }
 
     /**
      * Get QR code by amount (Public endpoint)
@@ -98,9 +86,6 @@ public class PaymentService {
     public AdminPaymentResponseDTO createPaymentQr(PaymentRequestDTO requestDTO, String adminUser) {
         log.info("➕ Admin creating QR code for amount: ₹{}", requestDTO.getAmount());
 
-        // ✅ FIXED: Verify admin password
-        verifyAdminPassword(requestDTO.getAdminPassword());
-
         // Check for duplicate amount
         if (paymentRepo.existsByAmount(requestDTO.getAmount())) {
             throw new DuplicateAmountException(
@@ -126,9 +111,6 @@ public class PaymentService {
     @Transactional
     public AdminPaymentResponseDTO updatePaymentQr(Integer amount, PaymentRequestDTO requestDTO, String adminUser) {
         log.info("🔄 Admin updating QR code for amount: ₹{}", amount);
-
-        // ✅ FIXED: Verify admin password
-        verifyAdminPassword(requestDTO.getAdminPassword());
 
         Payment payment = paymentRepo.findByAmount(amount)
                 .orElseThrow(() -> new PaymentNotFoundException(
@@ -156,11 +138,8 @@ public class PaymentService {
      * ✅ FIXED: Toggle QR status with secure authentication
      */
     @Transactional
-    public AdminPaymentResponseDTO toggleQrStatus(Integer amount, AdminPasswordDTO passwordDTO, String adminUser) {
+    public AdminPaymentResponseDTO toggleQrStatus(Integer amount, String adminUser) {
         log.info("🔄 Admin toggling status for amount: ₹{}", amount);
-
-        // ✅ FIXED: Verify admin password
-        verifyAdminPassword(passwordDTO.getAdminPassword());
 
         Payment payment = paymentRepo.findByAmount(amount)
                 .orElseThrow(() -> new PaymentNotFoundException(
@@ -179,11 +158,8 @@ public class PaymentService {
      * ✅ FIXED: Delete payment QR with secure authentication
      */
     @Transactional
-    public void deletePaymentQr(Integer amount, AdminPasswordDTO passwordDTO) {
+    public void deletePaymentQr(Integer amount) {
         log.info("🗑️ Admin deleting QR code for amount: ₹{}", amount);
-
-        // ✅ FIXED: Verify admin password
-        verifyAdminPassword(passwordDTO.getAdminPassword());
 
         Payment payment = paymentRepo.findByAmount(amount)
                 .orElseThrow(() -> new PaymentNotFoundException(
@@ -198,11 +174,8 @@ public class PaymentService {
      * ✅ FIXED: Get all QR codes with secure authentication
      */
     @Transactional(readOnly = true)
-    public List<AdminPaymentResponseDTO> getAllPaymentQrs(AdminPasswordDTO passwordDTO) {
+    public List<AdminPaymentResponseDTO> getAllPaymentQrs() {
         log.info("🔍 Admin fetching all QR codes");
-
-        // ✅ FIXED: Verify admin password
-        verifyAdminPassword(passwordDTO.getAdminPassword());
 
         return paymentRepo.findAllByOrderByAmountAsc().stream()
                 .map(this::mapToAdminResponse)

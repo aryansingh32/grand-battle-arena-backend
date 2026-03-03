@@ -41,6 +41,14 @@ public class Slots {
 
     private LocalDateTime bookedAt;
 
+    /**
+     * JPA optimistic locking — defense-in-depth.
+     * If two transactions try to update the same slot row concurrently,
+     * the second one gets an OptimisticLockException instead of silently overwriting.
+     */
+    @Version
+    private Long version;
+
     public enum SlotStatus{
         AVAILABLE,
         BOOKED

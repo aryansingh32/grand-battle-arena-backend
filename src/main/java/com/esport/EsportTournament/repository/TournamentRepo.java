@@ -80,6 +80,20 @@ public interface TournamentRepo extends JpaRepository<Tournaments, Integer> {
     long countByStatus(Tournaments.TournamentStatus status);
 
     /**
+     * Sum revenue of completed tournaments
+     */
+    @Query("SELECT COALESCE(SUM(s.tournaments.entryFees), 0) FROM Slots s " +
+           "WHERE s.tournaments.status = 'COMPLETED' " +
+           "AND s.status = 'BOOKED'")
+    long sumCompletedTournamentsRevenue();
+
+    /**
+     * Get game popularity
+     */
+    @Query("SELECT t.game FROM Tournaments t GROUP BY t.game ORDER BY COUNT(t) DESC LIMIT 1")
+    String findMostPopularGame();
+
+    /**
      * Find tournaments by entry fee range
      */
     @Query("SELECT t FROM Tournaments t " +
@@ -142,6 +156,14 @@ public interface TournamentRepo extends JpaRepository<Tournaments, Integer> {
             "WHERE LOWER(t.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
             "ORDER BY t.startTime DESC")
     List<Tournaments> searchByName(@Param("searchTerm") String searchTerm);
+
+    @Query("SELECT t FROM Tournaments t WHERE " +
+           "(:status IS NULL OR t.status = :status) AND " +
+           "(:search IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :search, '%')))")
+    org.springframework.data.domain.Page<Tournaments> findByFilters(
+            @Param("status") Tournaments.TournamentStatus status,
+            @Param("search") String search,
+            org.springframework.data.domain.Pageable pageable);
 
     /**
      * Find tournaments with slot statistics

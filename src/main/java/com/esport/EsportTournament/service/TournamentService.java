@@ -31,6 +31,7 @@ public class TournamentService {
 
     private final TournamentRepo tournamentRepo;
     private final TournamentResultRepository tournamentResultRepository;
+    private final com.esport.EsportTournament.repository.SlotRepo slotRepo;
     private final SlotService slotService;
     private final NotificationService notificationService;
     private final com.esport.EsportTournament.util.EncryptionUtil encryptionUtil;
@@ -168,7 +169,12 @@ public class TournamentService {
         log.info("Game credentials updated successfully for tournament ID: {}", tournamentId);
 
         List<SlotsDTO> slotList = slotService.getSlots(tournamentId);
-        List<String> participants = slotList.stream().map(SlotsDTO::getFirebaseUserUID).toList();
+        // CRITICAL FIX: Deduplicate UIDs — one user with 5 slots should get 1 notification, not 5
+        List<String> participants = slotList.stream()
+                .map(SlotsDTO::getFirebaseUserUID)
+                .filter(uid -> uid != null && !uid.isEmpty())
+                .distinct()
+                .toList();
 
         notificationService.sendGameCredentials(tournamentId, gameId, gamePassword, participants);
 
@@ -216,8 +222,10 @@ public class TournamentService {
     @Cacheable("tournaments")
     public List<TournamentsDTO> getAllTournaments() {
         log.debug("Fetching all tournaments");
-        return tournamentRepo.findAllByOrderByStartTimeDesc().stream()
-                .map(this::mapToDTO)
+        List<Tournaments> tournaments = tournamentRepo.findAllByOrderByStartTimeDesc();
+        Map<Integer, Long> bookedCounts = getBookedCountsBatch(tournaments);
+        return tournaments.stream()
+                .map(t -> mapToDTOSimple(t, bookedCounts.getOrDefault(t.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -227,8 +235,10 @@ public class TournamentService {
     @Transactional(readOnly = true)
     public List<TournamentsDTO> getTournamentsByStatus(Tournaments.TournamentStatus status) {
         log.debug("Fetching tournaments with status: {}", status);
-        return tournamentRepo.findByStatusOrderByStartTimeAsc(status).stream()
-                .map(this::mapToDTO)
+        List<Tournaments> tournaments = tournamentRepo.findByStatusOrderByStartTimeAsc(status);
+        Map<Integer, Long> bookedCounts = getBookedCountsBatch(tournaments);
+        return tournaments.stream()
+                .map(t -> mapToDTOSimple(t, bookedCounts.getOrDefault(t.getId(), 0L)))
                 .collect(Collectors.toList());
     }
 
@@ -239,6 +249,14 @@ public class TournamentService {
     @Cacheable("upcoming_tournaments")
     public List<TournamentsDTO> getUpcomingTournaments() {
         return getTournamentsByStatus(Tournaments.TournamentStatus.UPCOMING);
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<TournamentsDTO> getTournamentsPaginated(
+            Tournaments.TournamentStatus status, String search, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Tournaments> page = tournamentRepo.findByFilters(status, search, pageable);
+        Map<Integer, Long> bookedCounts = getBookedCountsBatch(page.getContent());
+        return page.map(t -> mapToDTOSimple(t, bookedCounts.getOrDefault(t.getId(), 0L)));
     }
 
     /**
@@ -524,5 +542,81 @@ public class TournamentService {
         }
 
         return dto;
+    }
+
+    /**
+     * Map entity to DTO without fetching heavy collections like participants and scoreboard.
+     * Prevents N+1 queries in list endpoints.
+     */
+    private TournamentsDTO mapToDTOSimple(Tournaments t) {
+        TournamentsDTO dto = new TournamentsDTO();
+        dto.setId(t.getId());
+        dto.setName(t.getName());
+        dto.setPrizePool(t.getPrizePool());
+        dto.setEntryFee(t.getEntryFees());
+        dto.setImageLink(t.getImageLink());
+        dto.setMap(t.getMapType());
+        dto.setGame(t.getGame());
+        dto.setMaxPlayers(t.getMaxPlayers());
+        dto.setStartTime(t.getStartTime());
+
+        String teamSize = t.getTeamSize();
+        if (teamSize == null || teamSize.trim().isEmpty()) {
+            teamSize = "SOLO";
+        } else {
+            teamSize = teamSize.trim().toUpperCase();
+        }
+        dto.setTeamSize(teamSize);
+
+        dto.setStatus(t.getStatus());
+
+        if (t.getRules() != null && !t.getRules().trim().isEmpty()) {
+            try {
+                List<String> rulesList = objectMapper.readValue(t.getRules(),
+                        new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {
+                        });
+                dto.setRules(rulesList);
+            } catch (Exception e) {
+                dto.setRules(new ArrayList<>());
+            }
+        } else {
+            dto.setRules(new ArrayList<>());
+        }
+
+        dto.setPerKillReward(t.getPerKillReward());
+        dto.setFirstPrize(t.getFirstPrize());
+        dto.setSecondPrize(t.getSecondPrize());
+        dto.setThirdPrize(t.getThirdPrize());
+        dto.setStreamUrl(t.getStreamUrl());
+
+        // Empty lists for simple views
+        dto.setParticipants(new ArrayList<>());
+        dto.setScoreboard(new ArrayList<>());
+        
+        return dto;
+    }
+
+    private TournamentsDTO mapToDTOSimple(Tournaments t, long registeredPlayers) {
+        TournamentsDTO dto = mapToDTOSimple(t);
+        dto.setRegisteredPlayers((int) registeredPlayers);
+        return dto;
+    }
+
+    private Map<Integer, Long> getBookedCountsBatch(List<Tournaments> tournaments) {
+        if (tournaments.isEmpty()) return new java.util.HashMap<>();
+        
+        List<Integer> ids = tournaments.stream().map(Tournaments::getId).collect(Collectors.toList());
+        List<Object[]> summaries = slotRepo.getSlotSummaryBatch(ids);
+        
+        Map<Integer, Long> counts = new java.util.HashMap<>();
+        for (Object[] row : summaries) {
+            Integer tid = (Integer) row[0];
+            com.esport.EsportTournament.model.Slots.SlotStatus status = (com.esport.EsportTournament.model.Slots.SlotStatus) row[1];
+            Long count = (Long) row[2];
+            if (status == com.esport.EsportTournament.model.Slots.SlotStatus.BOOKED) {
+                counts.put(tid, count);
+            }
+        }
+        return counts;
     }
 }

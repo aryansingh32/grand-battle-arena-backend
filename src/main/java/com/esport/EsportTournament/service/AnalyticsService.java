@@ -191,29 +191,16 @@ public class AnalyticsService {
     }
 
     private long calculateTotalCoins() {
-        return walletRepo.findAll().stream()
-                .mapToLong(wallet -> wallet.getCoins())
-                .sum();
+        return walletRepo.sumAllCoins();
     }
 
     private long calculateTotalRevenue() {
-        // Sum of all completed tournament entry fees
-        return tournamentRepo.findAll().stream()
-                .filter(t -> t.getStatus() == Tournaments.TournamentStatus.COMPLETED)
-                .mapToLong(t -> {
-                    long bookedSlots = slotRepo.countByTournaments_IdAndStatus(
-                            t.getId(), com.esport.EsportTournament.model.Slots.SlotStatus.BOOKED);
-                    return bookedSlots * t.getEntryFees();
-                })
-                .sum();
+        return tournamentRepo.sumCompletedTournamentsRevenue();
     }
 
     private long calculateRevenueToday() {
         LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-        return slotRepo.findAll().stream()
-                .filter(slot -> slot.getBookedAt() != null && slot.getBookedAt().isAfter(startOfDay))
-                .mapToLong(slot -> slot.getTournaments().getEntryFees())
-                .sum();
+        return slotRepo.sumRevenueBookedAfter(startOfDay);
     }
 
     private double calculateAvgBookingsPerTournament() {
@@ -233,22 +220,12 @@ public class AnalyticsService {
 
     private long countSlotsBookedToday() {
         LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-        return slotRepo.findAll().stream()
-                .filter(slot -> slot.getBookedAt() != null && slot.getBookedAt().isAfter(startOfDay))
-                .count();
+        return slotRepo.countBookingsAfter(startOfDay);
     }
 
     private String findMostPopularGame() {
-        Map<String, Long> gameCounts = tournamentRepo.findAll().stream()
-                .collect(Collectors.groupingBy(
-                        com.esport.EsportTournament.model.Tournaments::getGame,
-                        Collectors.counting()
-                ));
-
-        return gameCounts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse("N/A");
+        String popularGame = tournamentRepo.findMostPopularGame();
+        return popularGame != null ? popularGame : "N/A";
     }
 
     private double calculateUserGrowthRate() {
@@ -366,53 +343,49 @@ public class AnalyticsService {
     }
 
     private long calculateTotalDeposits() {
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT)
-                .filter(t -> t.getStatus() == com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED)
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .sum();
+        return transactionRepo.sumAmountByTypeAndStatus(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED
+        );
     }
 
     private long calculateTotalWithdrawals() {
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL)
-                .filter(t -> t.getStatus() == com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED)
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .sum();
+        return transactionRepo.sumAmountByTypeAndStatus(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED
+        );
     }
 
     private long calculateDepositsToday() {
         LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT)
-                .filter(t -> t.getCreatedAt().isAfter(startOfDay))
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .sum();
+        return transactionRepo.sumAmountByTypeStatusAndCreatedAtAfter(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED,
+                startOfDay
+        );
     }
 
     private long calculateWithdrawalsToday() {
         LocalDateTime startOfDay = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL)
-                .filter(t -> t.getCreatedAt().isAfter(startOfDay))
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .sum();
+        return transactionRepo.sumAmountByTypeStatusAndCreatedAtAfter(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED,
+                startOfDay
+        );
     }
 
     private double calculateAverageDepositAmount() {
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT)
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .average()
-                .orElse(0.0);
+        return transactionRepo.avgAmountByTypeAndStatus(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.DEPOSIT,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED
+        );
     }
 
     private double calculateAverageWithdrawalAmount() {
-        return transactionRepo.findAll().stream()
-                .filter(t -> t.getType() == com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL)
-                .mapToLong(com.esport.EsportTournament.model.TransactionTable::getAmount)
-                .average()
-                .orElse(0.0);
+        return transactionRepo.avgAmountByTypeAndStatus(
+                com.esport.EsportTournament.model.TransactionTable.TransactionType.WITHDRAWAL,
+                com.esport.EsportTournament.model.TransactionTable.TransactionStatus.COMPLETED
+        );
     }
 
     private long countPendingDeposits() {

@@ -144,13 +144,16 @@ public class NotificationService {
             data.putAll(additionalData);
         }
 
-        // Send push notifications to all participants
-        for (String participantUID : participantUIDs) {
-            sendPushNotificationToUser(participantUID, title, message, data);
-        }
+        // Send push notifications to all UNIQUE participants
+    // CRITICAL FIX: Deduplicate UIDs — a user with N booked slots
+    // should receive exactly 1 notification, not N.
+    Set<String> uniqueUIDs = new LinkedHashSet<>(participantUIDs);
+    for (String participantUID : uniqueUIDs) {
+        sendPushNotificationToUser(participantUID, title, message, data);
+    }
 
-        log.info("Sent {} notification to {} participants for tournament {}",
-                notificationType, participantUIDs.size(), tournamentId);
+    log.info("Sent {} notification to {} unique participants (from {} slot UIDs) for tournament {}",
+            notificationType, uniqueUIDs.size(), participantUIDs.size(), tournamentId);
     }
 
     public void sendGameCredentials(int tournamentId, String gameId, String gamePassword,
@@ -429,41 +432,50 @@ public class NotificationService {
             return;
 
         try {
-            // Build multicast message with proper Android/iOS config
-            MulticastMessage message = MulticastMessage.builder()
+            Map<String, String> enrichedData = new HashMap<>(data != null ? data : new HashMap<>());
+            enrichedData.put("title", title);
+            enrichedData.put("body", body);
+
+            String type = enrichedData.getOrDefault("type", "general");
+            boolean isDataOnly = "tournament_credentials".equals(type) || "TOURNAMENT_STARTED".equals(type) || "CREDENTIALS_UPDATED".equals(type);
+
+            MulticastMessage.Builder builder = MulticastMessage.builder()
                     .addAllTokens(tokens)
-                    .setNotification(
-                            com.google.firebase.messaging.Notification.builder()
-                                    .setTitle(title)
-                                    .setBody(body)
-                                    .build())
-                    .putAllData(data != null ? data : Collections.emptyMap())
-                    .setAndroidConfig(
-                            AndroidConfig.builder()
-                                    .setPriority(AndroidConfig.Priority.HIGH)
-                                    .setNotification(
-                                            AndroidNotification.builder()
-                                                    .setColor("#4CAF50")
-                                                    .setSound("default")
-                                                    .setChannelId("tournament_channel_v2")
-                                                    .setClickAction("FLUTTER_NOTIFICATION_CLICK")
-                                                    .build())
-                                    .build())
-                    .setApnsConfig(
+                    .putAllData(enrichedData);
+
+            if (!isDataOnly) {
+                builder.setNotification(
+                        com.google.firebase.messaging.Notification.builder()
+                                .setTitle(title)
+                                .setBody(body)
+                                .build())
+                       .setApnsConfig(
                             ApnsConfig.builder()
-                                    .setAps(
-                                            Aps.builder()
-                                                    .setAlert(
-                                                            ApsAlert.builder()
-                                                                    .setTitle(title)
-                                                                    .setBody(body)
-                                                                    .build())
-                                                    .setSound("default")
-                                                    .setBadge(1)
-                                                    .setContentAvailable(true)
+                                    .setAps(Aps.builder()
+                                            .setAlert(ApsAlert.builder()
+                                                    .setTitle(title)
+                                                    .setBody(body)
                                                     .build())
-                                    .build())
-                    .build();
+                                            .setSound("default")
+                                            .setBadge(1)
+                                            .setContentAvailable(true)
+                                            .build())
+                                    .build());
+            }
+
+            builder.setAndroidConfig(
+                    AndroidConfig.builder()
+                            .setPriority(AndroidConfig.Priority.HIGH)
+                            .setNotification(isDataOnly ? null :
+                                    AndroidNotification.builder()
+                                            .setColor("#4CAF50")
+                                            .setSound("default")
+                                            .setChannelId("tournament_channel_v2")
+                                            .setClickAction("FLUTTER_NOTIFICATION_CLICK")
+                                            .build())
+                            .build());
+
+            MulticastMessage message = builder.build();
 
             // Verify Firebase is initialized before sending
             if (FirebaseApp.getApps().isEmpty()) {
@@ -513,39 +525,49 @@ public class NotificationService {
                 return;
             }
 
+            Map<String, String> enrichedData = new HashMap<>(additionalData != null ? additionalData : new HashMap<>());
+            enrichedData.put("title", title);
+            enrichedData.put("body", message);
+
+            String type = enrichedData.getOrDefault("type", "general");
+            boolean isDataOnly = "tournament_credentials".equals(type) || "TOURNAMENT_STARTED".equals(type) || "CREDENTIALS_UPDATED".equals(type);
+
             // Build notification with proper configuration for both Android and iOS
             Message.Builder builder = Message.builder()
                     .setToken(deviceToken)
-                    .setNotification(
-                            com.google.firebase.messaging.Notification.builder()
-                                    .setTitle(title)
-                                    .setBody(message)
-                                    .build())
-                    .setAndroidConfig(
-                            AndroidConfig.builder()
-                                    .setPriority(AndroidConfig.Priority.HIGH)
-                                    .setNotification(
-                                            AndroidNotification.builder()
-                                                    .setColor("#4CAF50")
-                                                    .setSound("default")
-                                                    .setChannelId("tournament_channel_v2")
-                                                    .setClickAction("FLUTTER_NOTIFICATION_CLICK")
-                                                    .build())
-                                    .build())
-                    .setApnsConfig(
+                    .putAllData(enrichedData);
+
+            if (!isDataOnly) {
+                builder.setNotification(
+                        com.google.firebase.messaging.Notification.builder()
+                                .setTitle(title)
+                                .setBody(message)
+                                .build())
+                       .setApnsConfig(
                             ApnsConfig.builder()
-                                    .setAps(
-                                            Aps.builder()
-                                                    .setAlert(
-                                                            ApsAlert.builder()
-                                                                    .setTitle(title)
-                                                                    .setBody(message)
-                                                                    .build())
-                                                    .setSound("default")
-                                                    .setBadge(1)
-                                                    .setContentAvailable(true)
+                                    .setAps(Aps.builder()
+                                            .setAlert(ApsAlert.builder()
+                                                    .setTitle(title)
+                                                    .setBody(message)
                                                     .build())
+                                            .setSound("default")
+                                            .setBadge(1)
+                                            .setContentAvailable(true)
+                                            .build())
                                     .build());
+            }
+
+            builder.setAndroidConfig(
+                    AndroidConfig.builder()
+                            .setPriority(AndroidConfig.Priority.HIGH)
+                            .setNotification(isDataOnly ? null :
+                                    AndroidNotification.builder()
+                                            .setColor("#4CAF50")
+                                            .setSound("default")
+                                            .setChannelId("tournament_channel_v2")
+                                            .setClickAction("FLUTTER_NOTIFICATION_CLICK")
+                                            .build())
+                            .build());
 
             // Add additional data (if any)
             if (additionalData != null && !additionalData.isEmpty()) {

@@ -345,24 +345,35 @@ public class EnhancedNotificationService {
                                 return;
                         }
 
-                        Message fcmMessage = Message.builder()
-                                        .setToken(deviceToken)
-                                        .setNotification(com.google.firebase.messaging.Notification.builder()
-                                                        .setTitle(title)
-                                                        .setBody(message)
-                                                        .build())
-                                        .putAllData(data)
-                                        .setAndroidConfig(AndroidConfig.builder()
-                                                        .setPriority(AndroidConfig.Priority.HIGH)
-                                                        .setNotification(AndroidNotification.builder()
-                                                                        .setChannelId("tournament_channel_v2")
-                                                                        .setColor("#4CAF50")
-                                                                        .setSound("default")
-                                                                        .build())
-                                                        .build())
-                                        .build();
+                        // Enrich data payload with title and body for Flutter foreground/background parsing
+                        Map<String, String> enrichedData = new HashMap<>(data != null ? data : new HashMap<>());
+                        enrichedData.put("title", title);
+                        enrichedData.put("body", message);
 
-                        FirebaseMessaging.getInstance().send(fcmMessage);
+                        String type = enrichedData.getOrDefault("type", "general");
+                        boolean isDataOnly = "tournament_credentials".equals(type) || "TOURNAMENT_STARTED".equals(type) || "CREDENTIALS_UPDATED".equals(type);
+
+                        Message.Builder builder = Message.builder()
+                                        .setToken(deviceToken)
+                                        .putAllData(enrichedData);
+
+                        if (!isDataOnly) {
+                                builder.setNotification(com.google.firebase.messaging.Notification.builder()
+                                                .setTitle(title)
+                                                .setBody(message)
+                                                .build());
+                        }
+
+                        builder.setAndroidConfig(AndroidConfig.builder()
+                                        .setPriority(AndroidConfig.Priority.HIGH)
+                                        .setNotification(isDataOnly ? null : AndroidNotification.builder()
+                                                        .setChannelId("tournament_channel_v2")
+                                                        .setColor("#4CAF50")
+                                                        .setSound("default")
+                                                        .build())
+                                        .build());
+
+                        FirebaseMessaging.getInstance().send(builder.build());
                         log.info("✅ Notification sent to user: {}", firebaseUID);
 
                 } catch (FirebaseMessagingException e) {
@@ -375,7 +386,10 @@ public class EnhancedNotificationService {
 
         private void sendBatchNotifications(List<String> firebaseUIDs, String title,
                         String message, Map<String, String> data) {
+                // CRITICAL FIX: Deduplicate UIDs — one user with multiple slots
+                // should receive exactly 1 notification, not N.
                 List<String> validTokens = firebaseUIDs.stream()
+                                .distinct()  // deduplicate UIDs BEFORE resolving tokens
                                 .map(this::getUserDeviceToken)
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toList());
@@ -386,24 +400,35 @@ public class EnhancedNotificationService {
                 }
 
                 try {
-                        MulticastMessage multicastMessage = MulticastMessage.builder()
-                                        .addAllTokens(validTokens)
-                                        .setNotification(com.google.firebase.messaging.Notification.builder()
-                                                        .setTitle(title)
-                                                        .setBody(message)
-                                                        .build())
-                                        .putAllData(data)
-                                        .setAndroidConfig(AndroidConfig.builder()
-                                                        .setPriority(AndroidConfig.Priority.HIGH)
-                                                        .setNotification(AndroidNotification.builder()
-                                                                        .setChannelId("tournament_channel_v2")
-                                                                        .setColor("#4CAF50")
-                                                                        .setSound("default")
-                                                                        .build())
-                                                        .build())
-                                        .build();
+                        // Enrich data payload with title and body
+                        Map<String, String> enrichedData = new HashMap<>(data != null ? data : new HashMap<>());
+                        enrichedData.put("title", title);
+                        enrichedData.put("body", message);
 
-                        BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(multicastMessage);
+                        String type = enrichedData.getOrDefault("type", "general");
+                        boolean isDataOnly = "tournament_credentials".equals(type) || "TOURNAMENT_STARTED".equals(type) || "CREDENTIALS_UPDATED".equals(type);
+
+                        MulticastMessage.Builder builder = MulticastMessage.builder()
+                                        .addAllTokens(validTokens)
+                                        .putAllData(enrichedData);
+
+                        if (!isDataOnly) {
+                                builder.setNotification(com.google.firebase.messaging.Notification.builder()
+                                                .setTitle(title)
+                                                .setBody(message)
+                                                .build());
+                        }
+
+                        builder.setAndroidConfig(AndroidConfig.builder()
+                                        .setPriority(AndroidConfig.Priority.HIGH)
+                                        .setNotification(isDataOnly ? null : AndroidNotification.builder()
+                                                        .setChannelId("tournament_channel_v2")
+                                                        .setColor("#4CAF50")
+                                                        .setSound("default")
+                                                        .build())
+                                        .build());
+
+                        BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(builder.build());
                         log.info("✅ Batch notification sent: {} successful, {} failed",
                                         response.getSuccessCount(), response.getFailureCount());
 

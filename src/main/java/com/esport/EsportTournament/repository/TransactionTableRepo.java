@@ -43,6 +43,25 @@ public interface TransactionTableRepo extends JpaRepository<TransactionTable, In
      */
     long countByStatus(TransactionTable.TransactionStatus status);
 
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM TransactionTable t " +
+           "WHERE t.type = :type AND t.status = :status")
+    long sumAmountByTypeAndStatus(
+            @Param("type") TransactionTable.TransactionType type,
+            @Param("status") TransactionTable.TransactionStatus status);
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM TransactionTable t " +
+           "WHERE t.type = :type AND t.status = :status AND t.createdAt > :after")
+    long sumAmountByTypeStatusAndCreatedAtAfter(
+            @Param("type") TransactionTable.TransactionType type,
+            @Param("status") TransactionTable.TransactionStatus status,
+            @Param("after") LocalDateTime after);
+
+    @Query("SELECT COALESCE(AVG(t.amount), 0) FROM TransactionTable t " +
+           "WHERE t.type = :type AND t.status = :status")
+    double avgAmountByTypeAndStatus(
+            @Param("type") TransactionTable.TransactionType type,
+            @Param("status") TransactionTable.TransactionStatus status);
+
     /**
      * Find user transactions ordered by date
      */
@@ -105,4 +124,15 @@ public interface TransactionTableRepo extends JpaRepository<TransactionTable, In
     List<TransactionTable> findByTypeAndStatus(
             @Param("type") TransactionTable.TransactionType type,
             @Param("status") TransactionTable.TransactionStatus status);
+
+    @Query("SELECT t FROM TransactionTable t " +
+            "LEFT JOIN FETCH t.userId " +
+            "WHERE (:type IS NULL OR t.type = :type) " +
+            "AND (:status IS NULL OR t.status = :status) " +
+            "AND (:search IS NULL OR LOWER(t.userId.userName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(t.userId.email) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(t.transactionUID) LIKE LOWER(CONCAT('%', :search, '%')))")
+    org.springframework.data.domain.Page<TransactionTable> findByFiltersPaginated(
+            @Param("type") TransactionTable.TransactionType type,
+            @Param("status") TransactionTable.TransactionStatus status,
+            @Param("search") String search,
+            org.springframework.data.domain.Pageable pageable);
 }

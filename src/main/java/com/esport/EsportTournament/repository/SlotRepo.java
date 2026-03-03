@@ -17,9 +17,11 @@ import java.util.Optional;
 /**
  * ✅ FIXED: Optimized Slot Repository
  * - Added proper indexing hints
+ * - Added proper indexing hints
  * - Removed N+1 queries
  * - Added batch operations
  * - Optimized locking strategies
+ * - Added SQL aggregations for Analytics
  */
 @Repository
 public interface SlotRepo extends JpaRepository<Slots, Integer> {
@@ -111,6 +113,22 @@ public interface SlotRepo extends JpaRepository<Slots, Integer> {
     long countByTournaments_IdAndStatus(
             @Param("tournamentId") int tournamentId,
             @Param("status") Slots.SlotStatus status);
+
+    /**
+     * Sum revenue from bookings after a specific date
+     */
+    @Query("SELECT COALESCE(SUM(s.tournaments.entryFees), 0) FROM Slots s " +
+           "WHERE s.status = 'BOOKED' " +
+           "AND s.bookedAt > :after")
+    long sumRevenueBookedAfter(@Param("after") LocalDateTime after);
+
+    /**
+     * Count slots booked after a specific date
+     */
+    @Query("SELECT COUNT(s) FROM Slots s " +
+           "WHERE s.status = 'BOOKED' " +
+           "AND s.bookedAt > :after")
+    long countBookingsAfter(@Param("after") LocalDateTime after);
 
     /**
      * ✅ NEW: Batch slot summary

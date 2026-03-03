@@ -17,7 +17,6 @@ import java.util.Map;
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*") // Configure this properly for production
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -102,12 +101,11 @@ public class PaymentController {
     @PatchMapping("/admin/{amount}/toggle")
     public ResponseEntity<AdminPaymentResponseDTO> toggleQrStatus(
             @PathVariable Integer amount,
-            @Valid @RequestBody AdminPasswordDTO passwordDTO,
             @RequestHeader(value = "X-Admin-User", defaultValue = "ADMIN") String adminUser) {
 
         log.info("Admin toggling status for QR code amount: {}", amount);
 
-        AdminPaymentResponseDTO response = paymentService.toggleQrStatus(amount, passwordDTO, adminUser);
+        AdminPaymentResponseDTO response = paymentService.toggleQrStatus(amount, adminUser);
         return ResponseEntity.ok(response);
     }
 
@@ -118,12 +116,11 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('PERM_MANAGE_WALLET')")
     @DeleteMapping("/admin/{amount}")
     public ResponseEntity<Map<String, String>> deletePaymentQr(
-            @PathVariable Integer amount,
-            @Valid @RequestBody AdminPasswordDTO passwordDTO) {
+            @PathVariable Integer amount) {
 
         log.info("Admin deleting QR code for amount: {}", amount);
 
-        paymentService.deletePaymentQr(amount, passwordDTO);
+        paymentService.deletePaymentQr(amount);
 
         Map<String, String> response = Map.of(
                 "message", "QR code deleted successfully",
@@ -138,13 +135,12 @@ public class PaymentController {
      * POST /api/v1/payments/admin/all
      */
     @PreAuthorize("hasAuthority('PERM_MANAGE_WALLET')")
-    @PostMapping("/admin/all")
-    public ResponseEntity<List<AdminPaymentResponseDTO>> getAllPaymentQrs(
-            @Valid @RequestBody AdminPasswordDTO passwordDTO) {
+    @GetMapping("/admin/all")
+    public ResponseEntity<List<AdminPaymentResponseDTO>> getAllPaymentQrs() {
 
         log.info("Admin requesting all QR codes");
 
-        List<AdminPaymentResponseDTO> response = paymentService.getAllPaymentQrs(passwordDTO);
+        List<AdminPaymentResponseDTO> response = paymentService.getAllPaymentQrs();
         return ResponseEntity.ok(response);
     }
 

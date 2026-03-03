@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class TournamentController {
 
     private final TournamentService tournamentService;
+    private final com.esport.EsportTournament.repository.SlotRepo slotRepo;
 
     @PreAuthorize("hasAuthority('PERM_MANAGE_TOURNAMENTS')")
     @PostMapping
@@ -48,13 +50,20 @@ public class TournamentController {
     }
 
     @GetMapping("/{tournamentId}/credentials")
-//    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, String>> getTournamentCredentials(@PathVariable int tournamentId) {
-        // The business logic is kept in the service layer.
-        // The controller's job is to handle the HTTP request and response.
-        Map<String, String> credentials = tournamentService.getGameCredentials(tournamentId);
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> getTournamentCredentials(@PathVariable int tournamentId, Authentication authentication) {
+        // Enforce participant/admin checks
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("PERM_MANAGE_TOURNAMENTS"));
+        
+        if (!isAdmin) {
+            String uid = authentication.getName();
+            if (!slotRepo.existsByTournaments_IdAndUser_FirebaseUserUID(tournamentId, uid)) {
+                 return ResponseEntity.status(403).build();
+            }
+        }
 
-        // ResponseEntity.ok() wraps the map in a response with an HTTP 200 OK status.
+        Map<String, String> credentials = tournamentService.getGameCredentials(tournamentId);
         return ResponseEntity.ok(credentials);
     }
 //    @GetMapping("/filter")

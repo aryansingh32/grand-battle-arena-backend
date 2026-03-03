@@ -50,6 +50,15 @@ public class EarningsReportDTO {
     private long tournamentEntryRevenue;
     private long tournamentPrizePayout;
 
+    // Frontend-compatible aliases (EarningsPage.tsx expects these exact names)
+    public long getTotalEarnings() {
+        return platformRevenue;
+    }
+
+    public long getNetRevenue() {
+        return netProfit;
+    }
+
     // Detailed Transaction List
     private List<TransactionSummary> transactionDetails = new ArrayList<>();
 

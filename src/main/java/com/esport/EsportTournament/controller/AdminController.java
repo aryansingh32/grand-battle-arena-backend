@@ -185,7 +185,7 @@ public class AdminController {
      */
     @PreAuthorize("hasAuthority('PERM_MANAGE_ROLES')")
     @GetMapping("/users/{firebaseUID}/activity")
-    public ResponseEntity<Map<String, Object>> getUserActivity(@PathVariable String firebaseUID) {
+    public ResponseEntity<UserActivityDTO> getUserActivity(@PathVariable String firebaseUID) {
         log.debug("Fetching activity for user: {}", firebaseUID);
 
         try {
@@ -194,23 +194,65 @@ public class AdminController {
             List<TransactionTableDTO> transactions = transactionService.getUserTransactions(firebaseUID);
             List<SlotsDTO> bookedSlots = slotService.getUserBookedSlots(firebaseUID);
 
-            Map<String, Object> activity = Map.of(
-                    "user", user,
-                    "wallet", wallet,
-                    "transactionCount", transactions.size(),
-                    "bookedSlotsCount", bookedSlots.size(),
-                    "recentTransactions", transactions.stream().limit(5).toList(),
-                    "recentBookings", bookedSlots.stream().limit(5).toList());
+            UserActivityDTO activity = new UserActivityDTO();
+            activity.setUser(user);
+            activity.setWallet(wallet);
+            activity.setTransactionCount(transactions.size());
+            activity.setBookedSlotsCount(bookedSlots.size());
+            activity.setRecentTransactions(transactions.stream().limit(5).toList());
+            activity.setRecentBookings(bookedSlots.stream().limit(5).toList());
 
             return ResponseEntity.ok(activity);
         } catch (Exception e) {
             log.error("Error fetching user activity", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Failed to fetch user activity"));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     // ================= TOURNAMENT MANAGEMENT =================
+
+    /**
+     * Get paginated tournament list with filters
+     */
+    @PreAuthorize("hasAuthority('PERM_MANAGE_TOURNAMENTS')")
+    @GetMapping("/tournaments")
+    public ResponseEntity<Map<String, Object>> getAllTournamentsWithPagination(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "startTime") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search) {
+
+        log.debug("Fetching tournaments - page: {}, size: {}, status: {}, search: {}",
+                page, size, status, search);
+
+        try {
+            org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("asc") 
+                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
+                : org.springframework.data.domain.Sort.by(sortBy).descending();
+            
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, sort);
+            Tournaments.TournamentStatus tStatus = status != null && !status.isEmpty() 
+                ? Tournaments.TournamentStatus.valueOf(status.toUpperCase()) : null;
+
+            org.springframework.data.domain.Page<TournamentsDTO> tournamentPage = tournamentService.getTournamentsPaginated(tStatus, search, pageable);
+
+            Map<String, Object> response = Map.of(
+                    "content", tournamentPage.getContent(),
+                    "totalElements", tournamentPage.getTotalElements(),
+                    "totalPages", tournamentPage.getTotalPages(),
+                    "currentPage", tournamentPage.getNumber(),
+                    "pageSize", tournamentPage.getSize()
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching tournaments paginated", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch tournaments"));
+        }
+    }
 
     /**
      * Advanced tournament management with bulk operations
@@ -296,6 +338,52 @@ public class AdminController {
     }
 
     // ================= FINANCIAL MANAGEMENT =================
+
+    /**
+     * Get paginated transactions list
+     */
+    @PreAuthorize("hasAuthority('PERM_VIEW_ANALYTICS')")
+    @GetMapping("/transactions")
+    public ResponseEntity<Map<String, Object>> getTransactionsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String search) {
+            
+        try {
+            org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("asc") 
+                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
+                : org.springframework.data.domain.Sort.by(sortBy).descending();
+                
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, sort);
+            
+            com.esport.EsportTournament.model.TransactionTable.TransactionStatus tStatus = status != null && !status.isEmpty() 
+                ? com.esport.EsportTournament.model.TransactionTable.TransactionStatus.valueOf(status.toUpperCase()) : null;
+                
+            com.esport.EsportTournament.model.TransactionTable.TransactionType tType = type != null && !type.isEmpty() 
+                ? com.esport.EsportTournament.model.TransactionTable.TransactionType.valueOf(type.toUpperCase()) : null;
+
+            org.springframework.data.domain.Page<TransactionTableDTO> txPage = 
+                transactionService.getTransactionsPaginated(tType, tStatus, search, pageable);
+
+            Map<String, Object> response = Map.of(
+                    "content", txPage.getContent(),
+                    "totalElements", txPage.getTotalElements(),
+                    "totalPages", txPage.getTotalPages(),
+                    "currentPage", txPage.getNumber(),
+                    "pageSize", txPage.getSize()
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching paginated transactions", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to fetch transactions"));
+        }
+    }
 
     /**
      * Get financial overview and reports
@@ -518,28 +606,36 @@ public class AdminController {
      */
     @PreAuthorize("hasAuthority('PERM_VIEW_ANALYTICS')")
     @GetMapping("/settings")
-    public ResponseEntity<Map<String, Object>> getSystemSettings() {
-        Map<String, Object> settings = Map.of(
-                "maintenance", Map.of(
-                        "enabled", false,
-                        "message", "",
-                        "scheduledStart", null,
-                        "estimatedDuration", 0),
-                "features", Map.of(
-                        "userRegistration", true,
-                        "tournamentBooking", true,
-                        "walletTransactions", true,
-                        "notifications", true),
-                "limits", Map.of(
-                        "maxCoinBalance", 1000000,
-                        "maxTransactionAmount", 10000,
-                        "maxSlotsPerUser", 5,
-                        "maxTournamentParticipants", 100),
-                "security", Map.of(
-                        "requireEmailVerification", true,
-                        "enableTwoFactorAuth", false,
-                        "maxLoginAttempts", 5,
-                        "sessionTimeoutMinutes", 60));
+    public ResponseEntity<SystemSettingsDTO> getSystemSettings() {
+        SystemSettingsDTO settings = new SystemSettingsDTO();
+        
+        SystemSettingsDTO.MaintenanceSettings maintenance = new SystemSettingsDTO.MaintenanceSettings();
+        maintenance.setEnabled(false);
+        maintenance.setMessage("");
+        maintenance.setScheduledStart(null);
+        maintenance.setEstimatedDuration(0);
+        settings.setMaintenance(maintenance);
+
+        SystemSettingsDTO.FeatureSettings features = new SystemSettingsDTO.FeatureSettings();
+        features.setUserRegistration(true);
+        features.setTournamentBooking(true);
+        features.setWalletTransactions(true);
+        features.setNotifications(true);
+        settings.setFeatures(features);
+
+        SystemSettingsDTO.LimitSettings limits = new SystemSettingsDTO.LimitSettings();
+        limits.setMaxCoinBalance(1000000);
+        limits.setMaxTransactionAmount(10000);
+        limits.setMaxSlotsPerUser(5);
+        limits.setMaxTournamentParticipants(100);
+        settings.setLimits(limits);
+
+        SystemSettingsDTO.SecuritySettings security = new SystemSettingsDTO.SecuritySettings();
+        security.setRequireEmailVerification(true);
+        security.setEnableTwoFactorAuth(false);
+        security.setMaxLoginAttempts(5);
+        security.setSessionTimeoutMinutes(60);
+        settings.setSecurity(security);
 
         return ResponseEntity.ok(settings);
     }

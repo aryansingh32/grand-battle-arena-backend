@@ -136,18 +136,18 @@ public class UserController {
 
     @PreAuthorize("hasAuthority('PERM_MANAGE_ROLES')")
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getUserStats() {
+    public ResponseEntity<com.esport.EsportTournament.dto.UserStatsDTO> getUserStats() {
         long totalUsers = userService.getAllUsers().size();
         long activeUsers = userService.getActiveUsersCount();
         long adminUsers = userService.getUsersByRole(Users.UserRole.ADMIN).size();
         long bannedUsers = userService.getUsersByStatus(Users.UserStatus.BANNED).size();
 
-        Map<String, Object> stats = Map.of(
-                "totalUsers", totalUsers,
-                "activeUsers", activeUsers,
-                "adminUsers", adminUsers,
-                "bannedUsers", bannedUsers,
-                "inactiveUsers", totalUsers - activeUsers - bannedUsers);
+        com.esport.EsportTournament.dto.UserStatsDTO stats = new com.esport.EsportTournament.dto.UserStatsDTO();
+        stats.setTotalUsers(totalUsers);
+        stats.setActiveUsers(activeUsers);
+        stats.setAdminUsers(adminUsers);
+        stats.setBannedUsers(bannedUsers);
+        stats.setInactiveUsers(totalUsers - activeUsers - bannedUsers);
 
         return ResponseEntity.ok(stats);
     }

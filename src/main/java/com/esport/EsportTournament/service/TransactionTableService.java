@@ -119,6 +119,13 @@ public class TransactionTableService {
             transactionUID += "_" + upiId.trim();
         }
 
+        // ✅ Escrow: Deduct immediately upon request creation to prevent spam
+        wallet.setCoins(wallet.getCoins() - amount);
+        wallet.setLastUpdated(LocalDateTime.now());
+        walletRepo.save(wallet);
+        walletLedgerService.recordEntry(wallet, WalletLedger.Direction.DEBIT, amount,
+                wallet.getCoins(), "WITHDRAWAL_ESCROW", transactionUID, "Funds held for pending withdrawal", null);
+
         // Create withdrawal transaction
         TransactionTable transaction = new TransactionTable();
         transaction.setUserId(user);
@@ -171,16 +178,8 @@ public class TransactionTableService {
             log.info("✅ Deposit approved: {} coins added to user {}", transaction.getAmount(), firebaseUID);
 
         } else if (transaction.getType() == TransactionTable.TransactionType.WITHDRAWAL) {
-            // Deduct coins from wallet
-            if (wallet.getCoins() < transaction.getAmount()) {
-                throw new IllegalStateException("Insufficient balance for withdrawal");
-            }
-
-            wallet.setCoins(wallet.getCoins() - transaction.getAmount());
-            wallet.setLastUpdated(LocalDateTime.now());
-            walletRepo.save(wallet);
-            walletLedgerService.recordEntry(wallet, WalletLedger.Direction.DEBIT, transaction.getAmount(),
-                    wallet.getCoins(), "TRANSACTION", transactionId, null, adminUID);
+            // ✅ Coins were already deducted (escrowed) when the request was made.
+            // No need to deduct again.
 
             // Calculate commission
             int commission = (int) Math.round(transaction.getAmount() * COMMISSION_RATE);
@@ -217,6 +216,19 @@ public class TransactionTableService {
             throw new IllegalStateException("Transaction is not pending: " + transaction.getStatus());
         }
 
+        // ✅ Refund escrowed coins if it's a withdrawal
+        if (transaction.getType() == TransactionTable.TransactionType.WITHDRAWAL) {
+            String firebaseUID = transaction.getUserId().getFirebaseUserUID();
+            Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+            
+            wallet.setCoins(wallet.getCoins() + transaction.getAmount());
+            wallet.setLastUpdated(LocalDateTime.now());
+            walletRepo.save(wallet);
+            walletLedgerService.recordEntry(wallet, WalletLedger.Direction.CREDIT, transaction.getAmount(),
+                    wallet.getCoins(), "WITHDRAWAL_REFUND", transactionId, "Withdrawal rejected by admin", adminUID);
+        }
+
         transaction.setStatus(TransactionTable.TransactionStatus.REJECTED);
         transaction.setVerifiedBy(adminUID);
         transaction.setVerifiedAt(LocalDateTime.now());
@@ -246,6 +258,18 @@ public class TransactionTableService {
 
         if (transaction.getStatus() != TransactionTable.TransactionStatus.PENDING) {
             throw new IllegalStateException("Only pending transactions can be cancelled");
+        }
+
+        // ✅ Refund escrowed coins
+        if (transaction.getType() == TransactionTable.TransactionType.WITHDRAWAL) {
+            Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+                    .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
+            
+            wallet.setCoins(wallet.getCoins() + transaction.getAmount());
+            wallet.setLastUpdated(LocalDateTime.now());
+            walletRepo.save(wallet);
+            walletLedgerService.recordEntry(wallet, WalletLedger.Direction.CREDIT, transaction.getAmount(),
+                    wallet.getCoins(), "WITHDRAWAL_CANCELLED", transactionId, "Withdrawal cancelled by user", null);
         }
 
         transaction.setStatus(TransactionTable.TransactionStatus.REJECTED);
@@ -284,6 +308,19 @@ public class TransactionTableService {
         return transactionRepo.findByStatusOrderByCreatedAtAsc(TransactionTable.TransactionStatus.PENDING).stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get paginated transactions (admin only)
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<TransactionTableDTO> getTransactionsPaginated(
+            TransactionTable.TransactionType type,
+            TransactionTable.TransactionStatus status,
+            String search,
+            org.springframework.data.domain.Pageable pageable) {
+        return transactionRepo.findByFiltersPaginated(type, status, search, pageable)
+                .map(this::mapToDTO);
     }
 
     /**

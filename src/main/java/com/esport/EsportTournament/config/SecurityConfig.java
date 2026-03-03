@@ -49,7 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
 
                         // Registration endpoints - allow unregistered users to complete registration
-                        .requestMatchers("/api/users/me").permitAll()
+                        .requestMatchers("/api/users/me").authenticated()
                         .requestMatchers("/api/users/complete-registration").permitAll()
 
                         // Basic authenticated endpoints - all registered users
@@ -104,6 +104,10 @@ public class SecurityConfig {
 
         config.setAllowedOriginPatterns(Arrays.asList(
                 System.getenv().getOrDefault("FRONTEND_ORIGIN", "http://localhost:3000"),
+                "http://localhost:8081",
+                "http://localhost:5173",
+                "http://127.0.0.1:8081",
+                "http://10.0.2.2:8081",
                 "https://*.onrender.com",
                 "https://*.netlify.app"));
 

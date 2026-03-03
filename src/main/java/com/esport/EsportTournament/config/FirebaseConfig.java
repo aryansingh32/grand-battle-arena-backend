@@ -7,8 +7,10 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.core.io.ClassPathResource;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 @Slf4j
@@ -16,47 +18,65 @@ import java.nio.charset.StandardCharsets;
 @Lazy(false) // Force eager initialization - CRITICAL!
 public class FirebaseConfig {
 
+    private static final String SERVICE_ACCOUNT_FILE = "grand-battle-arena-firebase-adminsdk-fbsvc-dd8873786e.json";
+
     @PostConstruct
     public void initFirebase() {
         try {
             log.info("🔥 Starting Firebase initialization...");
 
-            String credentials = System.getenv("FIREBASE_CREDENTIALS");
-            String credentialsBase64 = System.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64");
+            InputStream credentialsStream = null;
 
-            // Try base64 version first if available
-            if (credentialsBase64 != null && !credentialsBase64.isBlank()) {
-                log.info("📦 Using FIREBASE_SERVICE_ACCOUNT_BASE64");
-                try {
-                    credentials = new String(java.util.Base64.getDecoder().decode(credentialsBase64),
-                            StandardCharsets.UTF_8);
-                    log.info("✅ Successfully decoded base64 credentials");
-                } catch (Exception e) {
-                    log.error("❌ Failed to decode base64 credentials: {}", e.getMessage());
+            // 1. Try loading service account JSON from classpath first
+            try {
+                ClassPathResource resource = new ClassPathResource(SERVICE_ACCOUNT_FILE);
+                if (resource.exists()) {
+                    credentialsStream = resource.getInputStream();
+                    log.info("✅ Loaded Firebase service account from classpath: {}", SERVICE_ACCOUNT_FILE);
                 }
+            } catch (Exception e) {
+                log.warn("⚠️ Could not load service account from classpath: {}", e.getMessage());
             }
 
-            if (credentials == null || credentials.isBlank()) {
-                log.error("❌ No Firebase credentials found in environment variables!");
-                throw new IllegalStateException("Firebase credentials missing!");
-            }
+            // 2. Fallback to environment variables
+            if (credentialsStream == null) {
+                String credentials = System.getenv("FIREBASE_CREDENTIALS");
+                String credentialsBase64 = System.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64");
 
-            log.info("✅ Credentials loaded (length: {} chars)", credentials.length());
+                // Try base64 version first if available
+                if (credentialsBase64 != null && !credentialsBase64.isBlank()) {
+                    log.info("📦 Using FIREBASE_SERVICE_ACCOUNT_BASE64");
+                    try {
+                        credentials = new String(java.util.Base64.getDecoder().decode(credentialsBase64),
+                                StandardCharsets.UTF_8);
+                        log.info("✅ Successfully decoded base64 credentials");
+                    } catch (Exception e) {
+                        log.error("❌ Failed to decode base64 credentials: {}", e.getMessage());
+                    }
+                }
 
-            // Sanitize private key (replace literal \n with actual newlines)
-            if (credentials.contains("\\n")) {
-                log.info("🔧 Sanitizing private key in credentials...");
-                credentials = credentials.replace("\\\\n", "\\n"); // Handle double escapes first
-                credentials = credentials.replace("\\n", "\n");
+                if (credentials == null || credentials.isBlank()) {
+                    log.error("❌ No Firebase credentials found (classpath file or environment variables)!");
+                    throw new IllegalStateException("Firebase credentials missing!");
+                }
+
+                log.info("✅ Credentials loaded from env (length: {} chars)", credentials.length());
+
+                // Sanitize private key (replace literal \n with actual newlines)
+                if (credentials.contains("\\n")) {
+                    log.info("🔧 Sanitizing private key in credentials...");
+                    credentials = credentials.replace("\\\\n", "\\n"); // Handle double escapes first
+                    credentials = credentials.replace("\\n", "\n");
+                }
+
+                credentialsStream = new ByteArrayInputStream(credentials.getBytes(StandardCharsets.UTF_8));
             }
 
             if (FirebaseApp.getApps().isEmpty()) {
                 log.info("📦 Initializing Firebase app...");
 
                 FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(
-                                GoogleCredentials.fromStream(
-                                        new ByteArrayInputStream(credentials.getBytes(StandardCharsets.UTF_8))))
+                        .setCredentials(GoogleCredentials.fromStream(credentialsStream))
                         .build();
 
                 FirebaseApp.initializeApp(options);
