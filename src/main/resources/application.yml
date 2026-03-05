@@ -19,14 +19,18 @@ spring:
   
   # PostgreSQL (from Render)
   datasource:
-    url: ${DATABASE_URL}
+    # Use JDBC_DATABASE_URL in container/platform.
+    # docker-entrypoint.sh converts DATABASE_URL (postgres://) -> JDBC_DATABASE_URL automatically.
+    url: ${SPRING_DATASOURCE_URL:${JDBC_DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:esport_tournament}}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DATABASE_USERNAME:${DB_USER:esport}}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DATABASE_PASSWORD:${DB_PASSWORD:esport123}}}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 3
-      minimum-idle: 1
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 900000
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:12}
+      minimum-idle: ${DB_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:20000}
+      idle-timeout: ${DB_IDLE_TIMEOUT_MS:300000}
+      max-lifetime: ${DB_MAX_LIFETIME_MS:900000}
   
   jpa:
     hibernate:
@@ -39,14 +43,17 @@ spring:
         jdbc.batch_size: 10
         order_inserts: true
         order_updates: true
+    open-in-view: false
   
   # Upstash Redis Configuration
   data:
     redis:
+      # Preferred in cloud platforms (supports redis:// or rediss://)
+      url: ${SPRING_DATA_REDIS_URL:${REDIS_URL:}}
       # Upstash uses REST API
-      host: ${UPSTASH_REDIS_HOST}
-      port: ${UPSTASH_REDIS_PORT}
-      password: ${UPSTASH_REDIS_PASSWORD}
+      host: ${UPSTASH_REDIS_HOST:localhost}
+      port: ${UPSTASH_REDIS_PORT:6379}
+      password: ${UPSTASH_REDIS_PASSWORD:}
       ssl:
         enabled: ${UPSTASH_REDIS_SSL:true}
       timeout: 30000
@@ -57,7 +64,7 @@ spring:
           min-idle: 1
   
   cache:
-    type: ${CACHE_TYPE:simple}  # Will be 'redis' when Upstash is configured
+    type: ${CACHE_TYPE:redis}
   
   servlet:
     multipart:
@@ -70,19 +77,25 @@ spring:
 
 server:
   port: ${PORT:10000}
+  shutdown: graceful
   tomcat:
     threads:
-      max: 20
-      min-spare: 2
-    max-connections: 500
+      max: ${TOMCAT_MAX_THREADS:100}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:10}
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:2000}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
   compression:
     enabled: true
+    min-response-size: 1024
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,text/css,application/javascript
 
 app:
   firebase:
-    credentials: ${FIREBASE_CREDENTIALS}
+    credentials: ${FIREBASE_CREDENTIALS:}
+    service-account-file: ${FIREBASE_SERVICE_ACCOUNT_FILE:}
+    service-account-base64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:}
   admin:
-    password: ${APP_ADMIN_PASSWORD:admin123}
+    password: ${APP_ADMIN_PASSWORD:}
 
 management:
   endpoints:
@@ -93,7 +106,7 @@ management:
     health:
       probes:
         enabled: true
-      show-details: always
+      show-details: when_authorized
 
 logging:
   level:

@@ -34,6 +34,7 @@ public class TournamentsDTO {
     private String imageLink;
     private String map;
     private String game;
+    private String gameMode;
     private int maxPlayers;
     private LocalDateTime startTime;
 

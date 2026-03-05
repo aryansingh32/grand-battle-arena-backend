@@ -30,26 +30,21 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
         String requestURI = request.getRequestURI();
         String method = request.getMethod();
-        log.info("🔍 FirebaseAuthFilter processing: {} {}", method, requestURI);
+        log.debug("FirebaseAuthFilter processing: {} {}", method, requestURI);
 
         // Skip authentication for public endpoints
         if (isPublicEndpoint(requestURI, method)) {
-            log.info("✅ Skipping authentication for public endpoint: {}", requestURI);
+            log.debug("Skipping authentication for public endpoint: {}", requestURI);
             filterChain.doFilter(request, response);
             return;
         }
 
         String authHeader = request.getHeader("Authorization");
-        log.info("🔐 Authorization header present: {}", authHeader != null ? "YES" : "NO");
-
-        if (authHeader != null) {
-            log.debug("📝 Full Authorization header: {}", authHeader);
-        }
+        log.debug("Authorization header present: {}", authHeader != null);
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String idToken = authHeader.substring(7);
-            log.info("🎫 Extracted Firebase token (length: {})", idToken.length());
-            log.debug("🎫 Token preview: {}...", idToken.substring(0, Math.min(50, idToken.length())));
+            log.debug("Extracted Firebase token (length: {})", idToken.length());
 
             try {
                 // **CRITICAL: Check if Firebase is initialized**
@@ -63,12 +58,12 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 }
 
                 // Verify Firebase ID token
-                log.info("🔍 Verifying Firebase token...");
+                log.debug("Verifying Firebase token");
                 FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
                 String firebaseUID = decodedToken.getUid();
                 String email = decodedToken.getEmail();
 
-                log.info("✅ Successfully authenticated Firebase user: {} ({})", firebaseUID, email);
+                log.debug("Successfully authenticated Firebase user: {} ({})", firebaseUID, email);
 
                 // Create authentication object with Firebase UID as principal
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -86,10 +81,10 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.info("🔒 Set authentication in SecurityContext for user: {}", firebaseUID);
+                log.debug("Set authentication in SecurityContext for user: {}", firebaseUID);
 
             } catch (FirebaseAuthException e) {
-                log.error("❌ Invalid Firebase token: {} - Error code: {}", e.getMessage(), e.getErrorCode());
+                log.warn("Invalid Firebase token: {} - Error code: {}", e.getMessage(), e.getErrorCode());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.getWriter()
@@ -97,14 +92,14 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 return;
             } catch (IllegalStateException e) {
                 // This catches the "FirebaseApp with name [DEFAULT] doesn't exist" error
-                log.error("💥 Firebase not initialized: {}", e.getMessage());
+                log.error("Firebase not initialized: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                 response.setContentType("application/json");
                 response.getWriter().write(
                         "{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase initialization failed\"}");
                 return;
             } catch (Exception e) {
-                log.error("💥 Error processing Firebase token", e);
+                log.error("Error processing Firebase token", e);
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.getWriter()
@@ -112,11 +107,11 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 return;
             }
         } else {
-            log.warn("⚠️  No valid Bearer token found for protected endpoint: {}", requestURI);
+            log.debug("No valid Bearer token found for protected endpoint: {}", requestURI);
             // Don't return error here, let Spring Security handle it
         }
 
-        log.info("➡️  Proceeding to next filter for: {}", requestURI);
+        log.debug("Proceeding to next filter for: {}", requestURI);
         filterChain.doFilter(request, response);
     }
 
@@ -131,10 +126,16 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 uri.startsWith("/actuator/") ||
                 uri.startsWith("/ws/") ||
                 uri.equals("/api/filters") ||
-                uri.equals("/api/filters");
+                uri.equals("/api/support") ||
+                uri.equals("/api/terms") ||
+                uri.equals("/api/v1/payments/amounts") ||
+                uri.equals("/api/v1/payments/health");
 
         if (uri.equals("/api/app/version")) {
             return "GET".equalsIgnoreCase(method);
+        }
+        if (uri.startsWith("/api/v1/payments/qr")) {
+            return "GET".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method);
         }
 
         log.debug("🌐 Endpoint {} ({}) is public: {}", uri, method, isPublic);

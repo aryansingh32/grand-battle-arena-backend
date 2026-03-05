@@ -20,6 +20,9 @@ spring:
 
   data:
     redis:
+      # Prevent empty URL parsing issue when running with local profile.
+      # This value is only used if SPRING_DATA_REDIS_URL/REDIS_URL is not exported.
+      url: redis://localhost:6379
       host: localhost
       port: 6379
       password:
@@ -33,7 +36,8 @@ spring:
           min-idle: 1
 
   cache:
-    type: redis
+    # Local dev: avoid Redis dependency for config/cacheable endpoints
+    type: simple
 
   flyway:
     enabled: true
@@ -45,41 +49,21 @@ server:
 
 app:
   firebase:
-    credentials: >
-      {
-        "project_info": {
-          "project_number": "621118586664",
-          "firebase_url": "https://grand-battle-arena-default-rtdb.asia-southeast1.firebasedatabase.app",
-          "project_id": "grand-battle-arena",
-          "storage_bucket": "grand-battle-arena.firebasestorage.app"
-        },
-        "client": [
-          {
-            "client_info": {
-              "mobilesdk_app_id": "1:621118586664:android:ca1d8c0dea56439062da1d",
-              "android_client_info": {
-                "package_name": "com.esport.EsportTournament"
-              }
-            },
-            "oauth_client": [],
-            "api_key": [
-              {
-                "current_key": "AIzaSyDrLPprcDSE83ay79AmDx1NTACz0Be1fTw"
-              }
-            ],
-            "services": {
-              "appinvite_service": {
-                "other_platform_oauth_client": []
-              }
-            }
-          }
-        ],
-        "configuration_version": "1"
-      }
+    # Local setup:
+    # export FIREBASE_CREDENTIALS='{"type":"service_account",...}'
+    # OR export FIREBASE_SERVICE_ACCOUNT_BASE64='<base64_json>'
+    credentials: ${FIREBASE_CREDENTIALS:}
+    service-account-file: ${FIREBASE_SERVICE_ACCOUNT_FILE:}
+    service-account-base64: ${FIREBASE_SERVICE_ACCOUNT_BASE64:}
   admin:
-    password: admin123
+    password: ${APP_ADMIN_PASSWORD:change-me-local}
 
 logging:
   level:
     root: INFO
     com.esport: DEBUG
+
+management:
+  health:
+    redis:
+      enabled: false

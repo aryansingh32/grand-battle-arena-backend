@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
@@ -24,6 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final ApiRateLimitFilter apiRateLimitFilter;
     private final FirebaseAuthFilter firebaseAuthFilter;
     private final RoleInjectionFilter roleInjectionFilter;
 
@@ -33,8 +36,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.deny())
+                        .contentTypeOptions(contentType -> {
+                        })
+                        .referrerPolicy(referrer -> referrer
+                                .policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000)))
 
                 // Add custom filters to the chain
+                .addFilterBefore(apiRateLimitFilter, FirebaseAuthFilter.class)
                 .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(roleInjectionFilter, FirebaseAuthFilter.class)
 
@@ -43,14 +56,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/banners").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/filters").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/support").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/terms").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/app/version").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/amounts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/qr/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/qr").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/ws/**").permitAll()
 
                         // Registration endpoints - allow unregistered users to complete registration
                         .requestMatchers("/api/users/me").authenticated()
-                        .requestMatchers("/api/users/complete-registration").permitAll()
+                        .requestMatchers("/api/users/complete-registration").authenticated()
 
                         // Basic authenticated endpoints - all registered users
                         .requestMatchers("/api/tournaments").authenticated()
@@ -102,19 +120,21 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOriginPatterns(Arrays.asList(
-                System.getenv().getOrDefault("FRONTEND_ORIGIN", "http://localhost:3000"),
-                "http://localhost:8081",
-                "http://localhost:5173",
-                "http://127.0.0.1:8081",
-                "http://10.0.2.2:8081",
-                "https://*.onrender.com",
-                "https://*.netlify.app"));
+        String allowedOriginsEnv = System.getenv().getOrDefault(
+                "ALLOWED_ORIGIN_PATTERNS",
+                "http://localhost:3000,http://localhost:5173,http://localhost:8081,http://127.0.0.1:8081,http://10.0.2.2:8081");
+        List<String> allowedOrigins = Arrays.stream(allowedOriginsEnv.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .collect(Collectors.toList());
+        boolean containsWildcard = allowedOrigins.stream().anyMatch(o -> o.equals("*"));
+
+        config.setAllowedOriginPatterns(allowedOrigins);
 
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(Arrays.asList("*", "Authorization", "Content-Type", "ngrok-skip-browser-warning"));
         config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(!containsWildcard);
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

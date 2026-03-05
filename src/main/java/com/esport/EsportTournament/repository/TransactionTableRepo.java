@@ -39,6 +39,20 @@ public interface TransactionTableRepo extends JpaRepository<TransactionTable, In
     boolean existsByTransactionUID(String transactionUID);
 
     /**
+     * Check duplicate transaction UID using normalized form
+     * (trim + remove spaces + upper-case).
+     */
+    @Query(value = """
+            SELECT EXISTS(
+                SELECT 1
+                FROM transaction_table t
+                WHERE t.transaction_uid IS NOT NULL
+                  AND UPPER(REGEXP_REPLACE(TRIM(t.transaction_uid), '\\s+', '', 'g')) = :normalizedUid
+            )
+            """, nativeQuery = true)
+    boolean existsByNormalizedTransactionUID(@Param("normalizedUid") String normalizedUid);
+
+    /**
      * Count transactions by status (uses covering index)
      */
     long countByStatus(TransactionTable.TransactionStatus status);

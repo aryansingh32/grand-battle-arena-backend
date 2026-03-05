@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @RestController
@@ -34,6 +35,7 @@ public class AdminController {
     private final NotificationService notificationService;
     private final SlotService slotService;
     private final AuditLogService auditLogService;
+    private static final int MAX_PAGE_SIZE = 100;
 
     // ================= DASHBOARD & ANALYTICS =================
 
@@ -107,30 +109,38 @@ public class AdminController {
                 page, size, role, status, search);
 
         try {
-            List<UserDTO> allUsers = userService.getAllUsers();
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+            org.springframework.data.domain.Sort sort = buildSort(
+                    sortBy,
+                    sortDir,
+                    Set.of("createdAt", "userName", "email", "status", "role"),
+                    "createdAt");
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(safePage, safeSize, sort);
 
-            // Apply filters
-            List<UserDTO> filteredUsers = allUsers.stream()
-                    .filter(user -> role == null || user.getRole().name().equalsIgnoreCase(role))
-                    .filter(user -> status == null || user.getStatus().name().equalsIgnoreCase(status))
-                    .filter(user -> search == null ||
-                            user.getUserName().toLowerCase().contains(search.toLowerCase()) ||
-                            user.getEmail().toLowerCase().contains(search.toLowerCase()))
-                    .toList();
+            Users.UserRole roleFilter = (role == null || role.isBlank())
+                    ? null
+                    : Users.UserRole.valueOf(role.toUpperCase());
+            Users.UserStatus statusFilter = (status == null || status.isBlank())
+                    ? null
+                    : Users.UserStatus.valueOf(status.toUpperCase());
 
-            // Manual pagination (for demo - in production, use database pagination)
-            int start = page * size;
-            int end = Math.min(start + size, filteredUsers.size());
-            List<UserDTO> pageContent = filteredUsers.subList(start, end);
+            org.springframework.data.domain.Page<UserDTO> userPage = userService.getUsersPaginated(
+                    roleFilter,
+                    statusFilter,
+                    (search == null || search.isBlank()) ? null : search.trim(),
+                    pageable);
 
             Map<String, Object> response = Map.of(
-                    "content", pageContent,
-                    "totalElements", filteredUsers.size(),
-                    "totalPages", (filteredUsers.size() + size - 1) / size,
-                    "currentPage", page,
-                    "pageSize", size);
+                    "content", userPage.getContent(),
+                    "totalElements", userPage.getTotalElements(),
+                    "totalPages", userPage.getTotalPages(),
+                    "currentPage", userPage.getNumber(),
+                    "pageSize", userPage.getSize());
 
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid role/status filter"));
         } catch (Exception e) {
             log.error("Error fetching users", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -228,11 +238,14 @@ public class AdminController {
                 page, size, status, search);
 
         try {
-            org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("asc") 
-                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
-                : org.springframework.data.domain.Sort.by(sortBy).descending();
-            
-            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, sort);
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+            org.springframework.data.domain.Sort sort = buildSort(
+                    sortBy,
+                    sortDir,
+                    Set.of("startTime", "createdAt", "updatedAt", "name", "status", "prizePool", "entryFees"),
+                    "startTime");
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(safePage, safeSize, sort);
             Tournaments.TournamentStatus tStatus = status != null && !status.isEmpty() 
                 ? Tournaments.TournamentStatus.valueOf(status.toUpperCase()) : null;
 
@@ -354,11 +367,14 @@ public class AdminController {
             @RequestParam(required = false) String search) {
             
         try {
-            org.springframework.data.domain.Sort sort = sortDir.equalsIgnoreCase("asc") 
-                ? org.springframework.data.domain.Sort.by(sortBy).ascending()
-                : org.springframework.data.domain.Sort.by(sortBy).descending();
-                
-            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, sort);
+            int safePage = Math.max(page, 0);
+            int safeSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+            org.springframework.data.domain.Sort sort = buildSort(
+                    sortBy,
+                    sortDir,
+                    Set.of("createdAt", "amount", "status", "type", "verifiedAt"),
+                    "createdAt");
+            org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(safePage, safeSize, sort);
             
             com.esport.EsportTournament.model.TransactionTable.TransactionStatus tStatus = status != null && !status.isEmpty() 
                 ? com.esport.EsportTournament.model.TransactionTable.TransactionStatus.valueOf(status.toUpperCase()) : null;
@@ -749,5 +765,16 @@ public class AdminController {
         // In a real implementation, you might have different admin permission levels
         // For now, all admins can perform all operations
         log.debug("Admin {} validated for operation: {}", adminUID, operation);
+    }
+
+    private org.springframework.data.domain.Sort buildSort(
+            String sortBy,
+            String sortDir,
+            Set<String> allowedFields,
+            String defaultField) {
+        String safeSortBy = allowedFields.contains(sortBy) ? sortBy : defaultField;
+        return "asc".equalsIgnoreCase(sortDir)
+                ? org.springframework.data.domain.Sort.by(safeSortBy).ascending()
+                : org.springframework.data.domain.Sort.by(safeSortBy).descending();
     }
 }

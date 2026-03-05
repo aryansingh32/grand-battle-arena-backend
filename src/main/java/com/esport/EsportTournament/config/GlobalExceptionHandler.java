@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import jakarta.validation.ConstraintViolationException;
@@ -301,8 +302,11 @@ public class GlobalExceptionHandler {
      */
     private String getHttpMethod(WebRequest request) {
         try {
-            // This is a simplified way to get HTTP method
-            // In a real implementation, you might need to cast to HttpServletRequest
+            if (request instanceof ServletWebRequest servletWebRequest) {
+                return servletWebRequest.getHttpMethod() != null
+                        ? servletWebRequest.getHttpMethod().name()
+                        : "UNKNOWN";
+            }
             return "UNKNOWN";
         } catch (Exception e) {
             return "UNKNOWN";

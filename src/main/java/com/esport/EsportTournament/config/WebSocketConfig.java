@@ -4,6 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * WebSocket Configuration for Real-time Updates
@@ -33,11 +36,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String allowedOriginsEnv = System.getenv().getOrDefault(
+                "WS_ALLOWED_ORIGIN_PATTERNS",
+                "http://localhost:3000,http://localhost:5173,http://localhost:8081,http://127.0.0.1:8081,http://10.0.2.2:8081");
+        List<String> allowedOrigins = Arrays.stream(allowedOriginsEnv.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .collect(Collectors.toList());
+
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*") // Configure properly in production
+                .setAllowedOriginPatterns(allowedOrigins.toArray(new String[0]))
                 .withSockJS(); // Fallback for browsers without WebSocket support
 
-        log.info("✅ WebSocket STOMP endpoints registered at /ws");
+        log.info("✅ WebSocket STOMP endpoints registered at /ws with {} allowed origins", allowedOrigins.size());
     }
 
     @Override

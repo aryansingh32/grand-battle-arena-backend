@@ -36,6 +36,8 @@ public class Tournaments {
     @Column(name = "max_players")
     private int maxPlayers;
     private String game;
+    @Column(name = "game_mode")
+    private String gameMode;
     @Column(name = "image_link")
     private String imageLink;
 
@@ -127,11 +129,9 @@ public class Tournaments {
                 teamSize = normalized; // Already correct
                 break;
             default:
-                System.err.println("⚠️ Unknown teamSize: '" + teamSize + "', defaulting to SOLO");
+                // Defensive fallback for invalid legacy values.
                 teamSize = "SOLO";
         }
-
-        System.out.println("✅ TeamSize normalized to: " + teamSize);
     }
 
     // 🔥 HELPER: Get players per team

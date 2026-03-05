@@ -33,6 +33,7 @@ public class TournamentService {
     private final TournamentResultRepository tournamentResultRepository;
     private final com.esport.EsportTournament.repository.SlotRepo slotRepo;
     private final SlotService slotService;
+    private final RulesService rulesService;
     private final NotificationService notificationService;
     private final com.esport.EsportTournament.util.EncryptionUtil encryptionUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -64,6 +65,7 @@ public class TournamentService {
         tournament.setStatus(dto.getStatus());
         tournament.setMaxPlayers(dto.getMaxPlayers());
         tournament.setGame(dto.getGame());
+        tournament.setGameMode(dto.getGameMode());
         // Encrypt credentials
         tournament.setGameId(encryptionUtil.encrypt(dto.getGameId()));
         tournament.setGamePassword(encryptionUtil.encrypt(dto.getGamePassword()));
@@ -331,9 +333,21 @@ public class TournamentService {
         if (tournament.getStatus() == Tournaments.TournamentStatus.ONGOING) {
             throw new IllegalStateException("Cannot delete an ongoing tournament");
         }
+        final boolean hasRecordedResults = tournamentResultRepository.existsByTournament_Id(tournamentId);
+        final boolean hasBookedSlots =
+                slotRepo.countByTournaments_IdAndStatus(tournamentId, com.esport.EsportTournament.model.Slots.SlotStatus.BOOKED) > 0;
+
+        if (hasRecordedResults || hasBookedSlots) {
+            // Preserve historical integrity for user history/analytics.
+            tournament.setStatus(Tournaments.TournamentStatus.CANCELLED);
+            tournament.setUpdatedAt(LocalDateTime.now());
+            tournamentRepo.save(tournament);
+            log.warn("Tournament {} archived (CANCELLED) instead of hard delete to preserve history", tournamentId);
+            return;
+        }
 
         tournamentRepo.deleteById(tournamentId);
-        log.info("Tournament deleted successfully with ID: {}", tournamentId);
+        log.info("Tournament hard-deleted successfully with ID: {}", tournamentId);
     }
 
     /**
@@ -465,6 +479,7 @@ public class TournamentService {
         dto.setImageLink(t.getImageLink());
         dto.setMap(t.getMapType());
         dto.setGame(t.getGame());
+        dto.setGameMode(t.getGameMode());
         dto.setMaxPlayers(t.getMaxPlayers());
         dto.setStartTime(t.getStartTime());
 
@@ -495,7 +510,7 @@ public class TournamentService {
                 dto.setRules(new ArrayList<>());
             }
         } else {
-            dto.setRules(new ArrayList<>());
+            dto.setRules(new ArrayList<>(rulesService.getGlobalRules()));
         }
 
         // Set prize fields
@@ -557,6 +572,7 @@ public class TournamentService {
         dto.setImageLink(t.getImageLink());
         dto.setMap(t.getMapType());
         dto.setGame(t.getGame());
+        dto.setGameMode(t.getGameMode());
         dto.setMaxPlayers(t.getMaxPlayers());
         dto.setStartTime(t.getStartTime());
 

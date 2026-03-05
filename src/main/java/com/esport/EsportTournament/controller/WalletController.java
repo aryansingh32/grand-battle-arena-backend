@@ -50,7 +50,10 @@ public class WalletController {
             @PathVariable String firebaseUID,
             @RequestBody Map<String, Integer> requestBody
     ) {
-        int amount = requestBody.get("amount");
+        Integer amount = requestBody.get("amount");
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Amount must be a positive integer");
+        }
         return ResponseEntity.ok(walletService.addCoins(firebaseUID, amount));
     }
     // ADD TO WalletController.java
@@ -70,7 +73,11 @@ public class WalletController {
         String adminUID = (String) authentication.getPrincipal();
         String fromUID = (String) request.get("fromUID");
         String toUID = (String) request.get("toUID");
-        Integer amount = (Integer) request.get("amount");
+        Object amountObj = request.get("amount");
+        if (!(amountObj instanceof Number number)) {
+            throw new IllegalArgumentException("Amount must be numeric");
+        }
+        int amount = number.intValue();
 
         walletService.transferCoins(fromUID, toUID, amount, adminUID);
 
@@ -85,7 +92,11 @@ public class WalletController {
             Authentication authentication) {
 
         String adminUID = (String) authentication.getPrincipal();
-        Integer newBalance = (Integer) request.get("balance");
+        Object balanceObj = request.get("balance");
+        if (!(balanceObj instanceof Number number)) {
+            throw new IllegalArgumentException("Balance must be numeric");
+        }
+        int newBalance = number.intValue();
 
         WalletDTO wallet = walletService.setWalletBalance(firebaseUID, newBalance, adminUID);
         return ResponseEntity.ok(wallet);
@@ -97,7 +108,10 @@ public class WalletController {
             @PathVariable String firebaseUID,
             @RequestBody Map<String, Integer> requestBody
     ) {
-        int amount = requestBody.get("amount");
+        Integer amount = requestBody.get("amount");
+        if (amount == null || amount <= 0) {
+            throw new IllegalArgumentException("Amount must be a positive integer");
+        }
         return ResponseEntity.ok(walletService.deductCoins(firebaseUID, amount));
     }
 }

@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -18,7 +19,14 @@ import java.nio.charset.StandardCharsets;
 @Lazy(false) // Force eager initialization - CRITICAL!
 public class FirebaseConfig {
 
-    private static final String SERVICE_ACCOUNT_FILE = "grand-battle-arena-firebase-adminsdk-fbsvc-dd8873786e.json";
+    @Value("${app.firebase.service-account-file:}")
+    private String serviceAccountFile;
+
+    @Value("${app.firebase.credentials:}")
+    private String firebaseCredentialsFromConfig;
+
+    @Value("${app.firebase.service-account-base64:}")
+    private String firebaseCredentialsBase64FromConfig;
 
     @PostConstruct
     public void initFirebase() {
@@ -27,21 +35,29 @@ public class FirebaseConfig {
 
             InputStream credentialsStream = null;
 
-            // 1. Try loading service account JSON from classpath first
+            // 1. Try loading service account JSON from classpath first (if configured)
             try {
-                ClassPathResource resource = new ClassPathResource(SERVICE_ACCOUNT_FILE);
-                if (resource.exists()) {
-                    credentialsStream = resource.getInputStream();
-                    log.info("✅ Loaded Firebase service account from classpath: {}", SERVICE_ACCOUNT_FILE);
+                if (serviceAccountFile != null && !serviceAccountFile.isBlank()) {
+                    ClassPathResource resource = new ClassPathResource(serviceAccountFile);
+                    if (resource.exists()) {
+                        credentialsStream = resource.getInputStream();
+                        log.info("✅ Loaded Firebase service account from classpath: {}", serviceAccountFile);
+                    } else {
+                        log.warn("⚠️ Firebase service account file configured but not found: {}", serviceAccountFile);
+                    }
                 }
             } catch (Exception e) {
                 log.warn("⚠️ Could not load service account from classpath: {}", e.getMessage());
             }
 
-            // 2. Fallback to environment variables
+            // 2. Fallback to Spring config/env variables
             if (credentialsStream == null) {
-                String credentials = System.getenv("FIREBASE_CREDENTIALS");
-                String credentialsBase64 = System.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64");
+                String credentials = !firebaseCredentialsFromConfig.isBlank()
+                        ? firebaseCredentialsFromConfig
+                        : System.getenv("FIREBASE_CREDENTIALS");
+                String credentialsBase64 = !firebaseCredentialsBase64FromConfig.isBlank()
+                        ? firebaseCredentialsBase64FromConfig
+                        : System.getenv("FIREBASE_SERVICE_ACCOUNT_BASE64");
 
                 // Try base64 version first if available
                 if (credentialsBase64 != null && !credentialsBase64.isBlank()) {

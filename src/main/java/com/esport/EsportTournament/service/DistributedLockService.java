@@ -1,7 +1,7 @@
 package com.esport.EsportTournament.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,10 +19,14 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DistributedLockService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    public DistributedLockService(@Autowired(required = false) RedisTemplate<String, Object> redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
 
     private static final String LOCK_PREFIX = "lock:";
     private static final Duration DEFAULT_LOCK_TIMEOUT = Duration.ofSeconds(10);
@@ -37,6 +41,11 @@ public class DistributedLockService {
     public String acquireLock(String key, Duration timeout) {
         String lockKey = LOCK_PREFIX + key;
         String lockValue = UUID.randomUUID().toString();
+
+        if (redisTemplate == null) {
+            log.debug("🔧 Redis disabled: Simulating acquired lock for {}", lockKey);
+            return lockValue;
+        }
 
         try {
             Boolean acquired = redisTemplate.opsForValue()
@@ -74,6 +83,11 @@ public class DistributedLockService {
      */
     public void releaseLock(String key, String lockValue) {
         String lockKey = LOCK_PREFIX + key;
+
+        if (redisTemplate == null) {
+            log.debug("🔧 Redis disabled: Simulating released lock for {}", lockKey);
+            return;
+        }
 
         try {
             Object currentValue = redisTemplate.opsForValue().get(lockKey);

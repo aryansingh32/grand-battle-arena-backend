@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -45,7 +47,6 @@ public class UserService {
     public UserDTO createUser(UserDTO userDTO) {
         String firebaseUID = userDTO.getFirebaseUserUID();
         log.info("Creating new user with Firebase UID: {}", firebaseUID);
-        System.out.println(userDTO.getUserName() + " " + userDTO.getEmail() + " " + userDTO.getFirebaseUserUID());
 
         // Enhanced validation
         validateUserInput(userDTO);
@@ -178,6 +179,16 @@ public class UserService {
                 .stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserDTO> getUsersPaginated(
+            Users.UserRole role,
+            Users.UserStatus status,
+            String search,
+            Pageable pageable) {
+        return usersRepository.findByFilters(role, status, search, pageable)
+                .map(this::mapToDTO);
     }
 
     /**

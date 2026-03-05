@@ -41,9 +41,11 @@ WORKDIR /app
 
 # Copy JAR from builder
 COPY --from=builder /build/target/EsportTournament-0.0.1-SNAPSHOT.jar app.jar
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Create logs directory
 RUN mkdir -p /app/logs && \
+    chmod +x /app/docker-entrypoint.sh && \
     chown -R spring:spring /app
 
 # Switch to non-root user
@@ -70,4 +72,4 @@ ENV JAVA_OPTS="-Xms128m \
                -Dfile.encoding=UTF-8"
 
 # Entry point
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

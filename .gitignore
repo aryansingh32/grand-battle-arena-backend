@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Secrets
+src/main/resources/*firebase-adminsdk*.json
+src/main/resources/application-local.yml
+*.pem
+*.key

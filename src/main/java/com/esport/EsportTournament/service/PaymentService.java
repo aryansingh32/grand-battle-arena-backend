@@ -3,27 +3,18 @@ package com.esport.EsportTournament.service;
 import com.esport.EsportTournament.dto.*;
 import com.esport.EsportTournament.exception.DuplicateAmountException;
 import com.esport.EsportTournament.exception.PaymentNotFoundException;
-import com.esport.EsportTournament.exception.UnauthorizedException;
 import com.esport.EsportTournament.model.Payment;
 import com.esport.EsportTournament.repository.PaymentRepo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.annotation.PostConstruct;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * ✅ FIXED: Payment Service with Proper Security
- * - Removed plain text password
- * - Added BCrypt password hashing
- * - Environment variable for admin password
- * - Proper validation and error handling
+ * Payment QR management service.
  */
 @Slf4j
 @Service
@@ -31,18 +22,7 @@ import java.util.stream.Collectors;
 public class PaymentService {
 
     private final PaymentRepo paymentRepo;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(12);
-
-    // ✅ FIXED: Use environment variable for admin password
-    @Value("${admin.password.hash:$2a$12$Xd1qzjZ7cauS9xgtu.hMqO2rfhhexYRF3tFOZMQANzA1swQpOsRsK}")
-    private String adminPasswordHash;
-
-    @PostConstruct
-    public void init() {
-        log.info("✅ Payment service initialized with secure password hashing");
-        // In production, adminPasswordHash should be set via environment variable
-        // Default hash is for password "SECURE_ADMIN_2024" - CHANGE THIS IN PRODUCTION
-    }
+    
 
 
 

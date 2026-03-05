@@ -13,5 +13,7 @@ public interface TournamentResultRepository extends JpaRepository<TournamentResu
 
     List<TournamentResult> findByTournament_Id(int tournamentId);
 
+    boolean existsByTournament_Id(int tournamentId);
+
     void deleteByTournament_Id(int tournamentId);
 }

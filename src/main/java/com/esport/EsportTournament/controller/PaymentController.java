@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -68,7 +69,8 @@ public class PaymentController {
     @PostMapping("/admin/create")
     public ResponseEntity<AdminPaymentResponseDTO> createPaymentQr(
             @Valid @RequestBody PaymentRequestDTO requestDTO,
-            @RequestHeader(value = "X-Admin-User", defaultValue = "ADMIN") String adminUser) {
+            Authentication authentication) {
+        String adminUser = authentication.getName();
 
         log.info("Admin creating QR code for amount: {}", requestDTO.getAmount());
 
@@ -85,7 +87,8 @@ public class PaymentController {
     public ResponseEntity<AdminPaymentResponseDTO> updatePaymentQr(
             @PathVariable Integer amount,
             @Valid @RequestBody PaymentRequestDTO requestDTO,
-            @RequestHeader(value = "X-Admin-User", defaultValue = "ADMIN") String adminUser) {
+            Authentication authentication) {
+        String adminUser = authentication.getName();
 
         log.info("Admin updating QR code for amount: {}", amount);
 
@@ -101,7 +104,8 @@ public class PaymentController {
     @PatchMapping("/admin/{amount}/toggle")
     public ResponseEntity<AdminPaymentResponseDTO> toggleQrStatus(
             @PathVariable Integer amount,
-            @RequestHeader(value = "X-Admin-User", defaultValue = "ADMIN") String adminUser) {
+            Authentication authentication) {
+        String adminUser = authentication.getName();
 
         log.info("Admin toggling status for QR code amount: {}", amount);
 

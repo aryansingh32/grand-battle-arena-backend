@@ -15,8 +15,11 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import org.hibernate.Hibernate;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.HashMap;
 
 @Slf4j
 @RestController
@@ -51,6 +54,18 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
     }
 
+    @PostMapping("/complete-registration")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserDTO> completeRegistration(
+            @RequestBody Map<String, String> request,
+            Authentication authentication) {
+        String firebaseUID = getAuthenticatedUserUID(authentication);
+        String preferredUsername = request.get("userName");
+        String email = request.get("email");
+        UserDTO updatedUser = userService.completeUserRegistration(firebaseUID, preferredUsername, email);
+        return ResponseEntity.ok(updatedUser);
+    }
+
     @GetMapping("/me")
     public ResponseEntity<UserDTO> getCurrentUser(Authentication authentication) {
         String firebaseUID = getAuthenticatedUserUID(authentication);
@@ -61,18 +76,24 @@ public class UserController {
     }
 
     @GetMapping("/me/history")
-    public ResponseEntity<List<TournamentResult>> getCurrentUserHistory(
+    public ResponseEntity<List<Map<String, Object>>> getCurrentUserHistory(
             Authentication authentication) {
         String firebaseUID = getAuthenticatedUserUID(authentication);
         log.debug("Fetching history for user: {}", firebaseUID);
-        return ResponseEntity.ok(userService.getUserHistory(firebaseUID));
+        return ResponseEntity.ok(
+                userService.getUserHistory(firebaseUID).stream()
+                        .map(this::toHistoryResponse)
+                        .collect(Collectors.toList()));
     }
 
     @GetMapping("/{firebaseUID}/history")
-    public ResponseEntity<List<TournamentResult>> getUserHistory(
+    public ResponseEntity<List<Map<String, Object>>> getUserHistory(
             @PathVariable String firebaseUID) {
         log.debug("Fetching history for user: {}", firebaseUID);
-        return ResponseEntity.ok(userService.getUserHistory(firebaseUID));
+        return ResponseEntity.ok(
+                userService.getUserHistory(firebaseUID).stream()
+                        .map(this::toHistoryResponse)
+                        .collect(Collectors.toList()));
     }
 
     // ---------------- Admin Endpoints ----------------
@@ -193,5 +214,32 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Failed to update device token");
         }
+    }
+
+    private Map<String, Object> toHistoryResponse(TournamentResult result) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", result.getId());
+        item.put("firebaseUserUID", result.getFirebaseUserUID());
+        item.put("playerName", result.getPlayerName());
+        item.put("teamName", result.getTeamName());
+        item.put("kills", result.getKills());
+        item.put("placement", result.getPlacement());
+        item.put("coinsEarned", result.getCoinsEarned());
+        item.put("createdAt", result.getCreatedAt());
+
+        if (result.getTournament() != null) {
+            // Ensure LAZY proxy is initialized before reading fields.
+            Hibernate.initialize(result.getTournament());
+            item.put("tournamentId", result.getTournament().getId());
+            item.put("tournamentName", result.getTournament().getName());
+            item.put("game", result.getTournament().getGame());
+            item.put("map", result.getTournament().getMapType());
+            item.put("startTime", result.getTournament().getStartTime());
+            item.put("tournamentStatus", result.getTournament().getStatus());
+        } else {
+            item.put("tournamentId", null);
+        }
+
+        return item;
     }
 }

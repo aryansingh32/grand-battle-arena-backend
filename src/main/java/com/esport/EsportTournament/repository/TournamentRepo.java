@@ -90,7 +90,11 @@ public interface TournamentRepo extends JpaRepository<Tournaments, Integer> {
     /**
      * Get game popularity
      */
-    @Query("SELECT t.game FROM Tournaments t GROUP BY t.game ORDER BY COUNT(t) DESC LIMIT 1")
+    @Query(value = "SELECT t.game FROM tournaments t " +
+            "WHERE t.game IS NOT NULL " +
+            "GROUP BY t.game " +
+            "ORDER BY COUNT(*) DESC " +
+            "LIMIT 1", nativeQuery = true)
     String findMostPopularGame();
 
     /**
@@ -180,4 +184,18 @@ public interface TournamentRepo extends JpaRepository<Tournaments, Integer> {
 //    Optional<Object[]> findTournamentWithStats(@Param("tournamentId") int tournamentId);
 
     List<Tournaments> findByStatusAndStartTimeBetween(Tournaments.TournamentStatus tournamentStatus, LocalDateTime now, LocalDateTime in15Minutes);
+
+    @Query("SELECT t FROM Tournaments t " +
+            "WHERE t.status IN :statuses " +
+            "AND t.startTime < :before")
+    List<Tournaments> findByStatusesAndStartTimeBefore(
+            @Param("statuses") List<Tournaments.TournamentStatus> statuses,
+            @Param("before") LocalDateTime before);
+
+    @Query("SELECT COUNT(t) FROM Tournaments t " +
+            "WHERE t.status = :status " +
+            "AND t.updatedAt >= :after")
+    long countByStatusAndUpdatedAtAfter(
+            @Param("status") Tournaments.TournamentStatus status,
+            @Param("after") LocalDateTime after);
 }

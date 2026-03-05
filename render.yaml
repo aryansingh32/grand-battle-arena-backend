@@ -36,6 +36,9 @@ services:
           type: redis
           name: esport-redis
           property: connectionString
+
+      - key: CACHE_TYPE
+        value: redis
       
       # Application Config
       - key: PORT
@@ -44,4 +47,6 @@ services:
       - key: APP_ADMIN_PASSWORD
         generateValue: true  # Render generates secure password
       
-      # You'll add FIREBASE_CREDENTIALS manually (see below)
+      # Firebase (set this manually in Render dashboard)
+      - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+        sync: false

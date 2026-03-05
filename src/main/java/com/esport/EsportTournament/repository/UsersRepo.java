@@ -11,6 +11,8 @@ import jakarta.persistence.QueryHint;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface UsersRepo extends JpaRepository<Users, Integer> {
@@ -132,4 +134,15 @@ public interface UsersRepo extends JpaRepository<Users, Integer> {
             "AND u.lastActiveAt < :before " +
             "ORDER BY u.lastActiveAt ASC")
     List<Users> findInactiveUsers(@Param("before") LocalDateTime before);
+
+    @Query("SELECT u FROM Users u WHERE " +
+            "(:role IS NULL OR u.role = :role) AND " +
+            "(:status IS NULL OR u.status = :status) AND " +
+            "(:search IS NULL OR LOWER(u.userName) LIKE LOWER(CONCAT('%', :search, '%')) " +
+            " OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Users> findByFilters(
+            @Param("role") Users.UserRole role,
+            @Param("status") Users.UserStatus status,
+            @Param("search") String search,
+            Pageable pageable);
 }

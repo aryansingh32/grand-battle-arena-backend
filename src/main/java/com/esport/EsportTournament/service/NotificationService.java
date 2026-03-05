@@ -2,8 +2,10 @@ package com.esport.EsportTournament.service;
 
 import com.esport.EsportTournament.dto.NotificationsDTO;
 import com.esport.EsportTournament.exception.ResourceNotFoundException;
+import com.esport.EsportTournament.model.NotificationRead;
 import com.esport.EsportTournament.model.Notifications;
 import com.esport.EsportTournament.model.Users;
+import com.esport.EsportTournament.repository.NotificationReadRepo;
 import com.esport.EsportTournament.repository.NotificationRepo;
 import com.esport.EsportTournament.repository.UsersRepo;
 import com.google.firebase.FirebaseApp;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class NotificationService {
 
     private final NotificationRepo notificationRepo;
+    private final NotificationReadRepo notificationReadRepo;
     private final UsersRepo usersRepo;
 
     // ------------------------ Core Notifications ------------------------
@@ -54,7 +57,7 @@ public class NotificationService {
         // Send push notifications based on target audience
         sendPushNotificationByAudience(savedNotification);
 
-        return mapToDTO(savedNotification, adminUID);
+        return mapToDTO(savedNotification, adminUID, false);
     }
 
     @Transactional
@@ -74,36 +77,49 @@ public class NotificationService {
         // Send push notification to specific user
         sendPushNotificationToUser(firebaseUID, title, message, null);
 
-        return mapToDTO(savedNotification, adminUID);
+        return mapToDTO(savedNotification, adminUID, false);
     }
 
     @Transactional(readOnly = true)
     public List<NotificationsDTO> getNotificationsForUser(String firebaseUID) {
         validateUser(firebaseUID);
-
-        return notificationRepo.findAll().stream()
-                .filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ALL ||
-                        n.getTargetAudience() == Notifications.TargetAudience.USER)
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .map(n -> mapToDTO(n, firebaseUID))
+        List<Notifications.TargetAudience> audiences = List.of(
+                Notifications.TargetAudience.ALL,
+                Notifications.TargetAudience.USER);
+        List<Notifications> notifications = notificationRepo.findByTargetAudienceInOrderByCreatedAtDesc(audiences);
+        List<Integer> ids = notifications.stream().map(Notifications::getId).toList();
+        Set<Integer> readIds = ids.isEmpty()
+                ? Collections.emptySet()
+                : new HashSet<>(notificationReadRepo.findReadNotificationIds(firebaseUID, ids));
+        return notifications.stream()
+                .map(n -> mapToDTO(n, firebaseUID, readIds.contains(n.getId())))
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<NotificationsDTO> getNotificationsForAdmin(String adminUID) {
         validateAdmin(adminUID);
-
-        return notificationRepo.findAll().stream()
-                .filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ALL ||
-                        n.getTargetAudience() == Notifications.TargetAudience.ADMIN)
-                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
-                .map(n -> mapToDTO(n, adminUID))
+        List<Notifications.TargetAudience> audiences = List.of(
+                Notifications.TargetAudience.ALL,
+                Notifications.TargetAudience.ADMIN);
+        return notificationRepo.findByTargetAudienceInOrderByCreatedAtDesc(audiences).stream()
+                .map(n -> mapToDTO(n, adminUID, false))
                 .collect(Collectors.toList());
     }
 
     @Transactional
     public void markNotificationAsRead(int notificationId, String firebaseUID) {
-        // For now, just log it. You can extend this to track read status per user
+        validateUser(firebaseUID);
+        Notifications notification = notificationRepo.findById(notificationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Notification not found with ID: " + notificationId));
+        if (notificationReadRepo.existsByNotification_IdAndFirebaseUserUID(notificationId, firebaseUID)) {
+            return;
+        }
+        NotificationRead read = new NotificationRead();
+        read.setNotification(notification);
+        read.setFirebaseUserUID(firebaseUID);
+        read.setReadAt(LocalDateTime.now());
+        notificationReadRepo.save(read);
         log.info("User {} marked notification {} as read", firebaseUID, notificationId);
     }
 
@@ -645,17 +661,8 @@ public class NotificationService {
             user.setDeviceTokenUpdatedAt(LocalDateTime.now());
             usersRepo.save(user);
 
-            log.info("✅ Updated device token for user: {} (token length: {})", firebaseUID, deviceToken.length());
 
-            // Send a test notification to verify token works
-            try {
-                sendPushNotificationToUser(firebaseUID, "Device Registered",
-                        "Your device has been successfully registered for push notifications!",
-                        Map.of("type", "device_registered"));
-                log.info("✅ Test notification sent to verify device token");
-            } catch (Exception e) {
-                log.warn("⚠️ Could not send test notification: {}", e.getMessage());
-            }
+            log.info("✅ Updated device token for user: {} (token length: {})", firebaseUID, deviceToken.length());
         } catch (Exception e) {
             log.error("❌ Error updating device token for user {}: {}", firebaseUID, e.getMessage(), e);
             throw new RuntimeException("Failed to update device token: " + e.getMessage(), e);
@@ -730,17 +737,17 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> getNotificationStats() {
-        List<Notifications> all = notificationRepo.findAll();
+        long total = notificationRepo.count();
+        long forAllUsers = notificationRepo.countByTargetAudience(Notifications.TargetAudience.ALL);
+        long forUsers = notificationRepo.countByTargetAudience(Notifications.TargetAudience.USER);
+        long forAdmins = notificationRepo.countByTargetAudience(Notifications.TargetAudience.ADMIN);
+        long forRegistered = notificationRepo.countByTargetAudience(Notifications.TargetAudience.REGISTERED);
         return Map.of(
-                "total", all.size(),
-                "forAllUsers",
-                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ALL).count(),
-                "forUsers",
-                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.USER).count(),
-                "forAdmins",
-                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.ADMIN).count(),
-                "forRegistered",
-                all.stream().filter(n -> n.getTargetAudience() == Notifications.TargetAudience.REGISTERED).count());
+                "total", total,
+                "forAllUsers", forAllUsers,
+                "forUsers", forUsers,
+                "forAdmins", forAdmins,
+                "forRegistered", forRegistered);
     }
 
     // ------------------------ Helpers ------------------------
@@ -758,8 +765,14 @@ public class NotificationService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
-    private NotificationsDTO mapToDTO(Notifications n, String firebaseUserUID) {
-        return new NotificationsDTO(n.getId(), firebaseUserUID, n.getMessage(),
-                n.getCreatedAt() != null ? n.getCreatedAt() : LocalDateTime.now());
+    private NotificationsDTO mapToDTO(Notifications n, String firebaseUserUID, boolean isRead) {
+        return new NotificationsDTO(
+                n.getId(),
+                firebaseUserUID,
+                n.getTitle(),
+                n.getMessage(),
+                n.getCreatedAt() != null ? n.getCreatedAt() : LocalDateTime.now(),
+                isRead,
+                n.getTargetAudience() != null ? n.getTargetAudience().name().toLowerCase() : "general");
     }
 }

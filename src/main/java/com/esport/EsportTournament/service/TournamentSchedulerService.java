@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +31,8 @@ public class TournamentSchedulerService {
     private final SlotService slotService;
     private final NotificationService notificationService;
     private final WebSocketService webSocketService;
+    private final com.esport.EsportTournament.util.EncryptionUtil encryptionUtil;
+    private final Map<String, LocalDateTime> reminderTracker = new ConcurrentHashMap<>();
 
     /**
      * Check and send reminders for upcoming tournaments
@@ -126,10 +129,9 @@ public class TournamentSchedulerService {
             LocalDateTime twoHoursAgo = now.minusHours(2);
 
             // Find ongoing tournaments that started more than 2 hours ago
-            List<Tournaments> tournamentsToComplete = tournamentRepo.findAll().stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.ONGOING)
-                    .filter(t -> t.getStartTime().isBefore(twoHoursAgo))
-                    .collect(Collectors.toList());
+            List<Tournaments> tournamentsToComplete = tournamentRepo.findByStatusAndStartTimeBefore(
+                    Tournaments.TournamentStatus.ONGOING,
+                    twoHoursAgo);
 
             for (Tournaments tournament : tournamentsToComplete) {
                 try {
@@ -158,11 +160,11 @@ public class TournamentSchedulerService {
         try {
             LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
 
-            List<Tournaments> oldTournaments = tournamentRepo.findAll().stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.COMPLETED ||
-                            t.getStatus() == Tournaments.TournamentStatus.CANCELLED)
-                    .filter(t -> t.getStartTime().isBefore(thirtyDaysAgo))
-                    .collect(Collectors.toList());
+            List<Tournaments> oldTournaments = tournamentRepo.findByStatusesAndStartTimeBefore(
+                    List.of(
+                            Tournaments.TournamentStatus.COMPLETED,
+                            Tournaments.TournamentStatus.CANCELLED),
+                    thirtyDaysAgo);
 
             // Archive or clean up old tournaments
             log.info("🧹 Found {} old tournaments for cleanup", oldTournaments.size());
@@ -182,31 +184,20 @@ public class TournamentSchedulerService {
     @Transactional(readOnly = true)
     public void monitorTournamentHealth() {
         try {
-            // Check for tournaments with issues
-            List<Tournaments> allTournaments = tournamentRepo.findAll();
-
-            long upcomingCount = allTournaments.stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.UPCOMING)
-                    .count();
-
-            long ongoingCount = allTournaments.stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.ONGOING)
-                    .count();
-
-            long completedToday = allTournaments.stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.COMPLETED)
-                    .filter(t -> t.getUpdatedAt().isAfter(LocalDateTime.now().minusDays(1)))
-                    .count();
+            long upcomingCount = tournamentRepo.countByStatus(Tournaments.TournamentStatus.UPCOMING);
+            long ongoingCount = tournamentRepo.countByStatus(Tournaments.TournamentStatus.ONGOING);
+            long completedToday = tournamentRepo.countByStatusAndUpdatedAtAfter(
+                    Tournaments.TournamentStatus.COMPLETED,
+                    LocalDateTime.now().minusDays(1));
 
             log.info("📊 Tournament Health: {} upcoming, {} ongoing, {} completed today",
                     upcomingCount, ongoingCount, completedToday);
 
             // Check for stale tournaments (ongoing for too long)
             LocalDateTime sixHoursAgo = LocalDateTime.now().minusHours(6);
-            long staleTournaments = allTournaments.stream()
-                    .filter(t -> t.getStatus() == Tournaments.TournamentStatus.ONGOING)
-                    .filter(t -> t.getStartTime().isBefore(sixHoursAgo))
-                    .count();
+            long staleTournaments = tournamentRepo.findByStatusAndStartTimeBefore(
+                    Tournaments.TournamentStatus.ONGOING,
+                    sixHoursAgo).size();
 
             if (staleTournaments > 0) {
                 log.warn("⚠️ Found {} stale tournaments (ongoing for 6+ hours)", staleTournaments);
@@ -236,11 +227,15 @@ public class TournamentSchedulerService {
         }
 
         // Send game credentials to participants
-        if (tournament.getGameId() != null && tournament.getGamePassword() != null) {
+        String decryptedGameId = encryptionUtil.decrypt(tournament.getGameId());
+        String decryptedGamePassword = encryptionUtil.decrypt(tournament.getGamePassword());
+
+        if (decryptedGameId != null && !decryptedGameId.isBlank()
+                && decryptedGamePassword != null && !decryptedGamePassword.isBlank()) {
             notificationService.sendGameCredentials(
                     tournament.getId(),
-                    tournament.getGameId(),
-                    tournament.getGamePassword(),
+                    decryptedGameId,
+                    decryptedGamePassword,
                     participantUIDs
             );
 
@@ -250,8 +245,8 @@ public class TournamentSchedulerService {
         // Broadcast via WebSocket
         webSocketService.broadcastTournamentStart(
                 tournament.getId(),
-                tournament.getGameId(),
-                tournament.getGamePassword()
+                decryptedGameId,
+                decryptedGamePassword
         );
 
         // Send individual notifications to each participant
@@ -261,8 +256,8 @@ public class TournamentSchedulerService {
                     "message", String.format("Tournament '%s' has begun! Check your notifications for game details.",
                             tournament.getName()),
                     "tournamentId", tournament.getId(),
-                    "gameId", tournament.getGameId() != null ? tournament.getGameId() : "",
-                    "gamePassword", tournament.getGamePassword() != null ? tournament.getGamePassword() : ""
+                    "gameId", decryptedGameId != null ? decryptedGameId : "",
+                    "gamePassword", decryptedGamePassword != null ? decryptedGamePassword : ""
             );
             webSocketService.sendUserNotification(participantUID, notification);
         }
@@ -342,13 +337,14 @@ public class TournamentSchedulerService {
     }
 
     private boolean shouldSendReminder(String reminderKey) {
-        // Implement Redis check to avoid duplicate reminders
-        // For now, return true (implement Redis tracking in production)
-        return true;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime sentAt = reminderTracker.get(reminderKey);
+        return sentAt == null || sentAt.isBefore(now.minusHours(24));
     }
 
     private void markReminderSent(String reminderKey) {
-        // Implement Redis marking
-        // Set expiry to 24 hours to clean up automatically
+        LocalDateTime now = LocalDateTime.now();
+        reminderTracker.put(reminderKey, now);
+        reminderTracker.entrySet().removeIf(entry -> entry.getValue().isBefore(now.minusHours(24)));
     }
 }

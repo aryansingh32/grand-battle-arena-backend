@@ -52,12 +52,15 @@ public class RedisConfig implements CachingConfigurer {
     @Bean
     public RedisConnectionFactory redisConnectionFactory() throws URISyntaxException {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
+        boolean useSsl = sslEnabled;
 
-        // Parse Redis URL if provided (Railway format: redis://:password@host:port)
-        if (redisUrl != null && !redisUrl.isEmpty() && redisUrl.startsWith("redis://")) {
+        // Parse Redis URL if provided (Railway/Render format: redis:// or rediss://)
+        if (redisUrl != null && !redisUrl.isEmpty()
+                && (redisUrl.startsWith("redis://") || redisUrl.startsWith("rediss://"))) {
             URI uri = new URI(redisUrl);
             config.setHostName(uri.getHost());
             config.setPort(uri.getPort());
+            useSsl = "rediss".equalsIgnoreCase(uri.getScheme()) || sslEnabled;
             if (uri.getUserInfo() != null && uri.getUserInfo().contains(":")) {
                 String password = uri.getUserInfo().split(":")[1];
                 if (password != null && !password.isEmpty()) {
@@ -75,7 +78,7 @@ public class RedisConfig implements CachingConfigurer {
 
         LettuceClientConfiguration clientConfig = LettuceClientConfiguration.builder().build();
 
-        if (sslEnabled) {
+        if (useSsl) {
             clientConfig = LettuceClientConfiguration.builder()
                     .useSsl()
                     .build();
@@ -94,10 +97,9 @@ public class RedisConfig implements CachingConfigurer {
         objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         
-        // Enable default typing for proper deserialization of Map<String, Object> and other polymorphic types
         objectMapper.activateDefaultTyping(
                 objectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.EVERYTHING,
+                ObjectMapper.DefaultTyping.NON_FINAL,
                 com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY);
         
         // Configure visibility to avoid issues with private fields
@@ -129,10 +131,9 @@ public class RedisConfig implements CachingConfigurer {
         objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         
-        // Enable default typing for proper deserialization of Map<String, Object> and other polymorphic types
         objectMapper.activateDefaultTyping(
                 objectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.EVERYTHING,
+                ObjectMapper.DefaultTyping.NON_FINAL,
                 com.fasterxml.jackson.annotation.JsonTypeInfo.As.PROPERTY);
         
         // Configure visibility to avoid issues with private fields

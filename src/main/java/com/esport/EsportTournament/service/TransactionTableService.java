@@ -16,9 +16,11 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +44,7 @@ public class TransactionTableService {
     private final WalletLedgerService walletLedgerService;
 
     private static final double COMMISSION_RATE = 0.03; // 3% platform fee
+    private static final Pattern UTR_PATTERN = Pattern.compile("^[A-Z0-9]{8,40}$");
 
     /**
      * ✅ FIXED: Create deposit request with proper validation
@@ -54,13 +57,18 @@ public class TransactionTableService {
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount must be positive");
         }
-        if (transactionUID == null || transactionUID.trim().isEmpty()) {
+        String normalizedTransactionUid = normalizeTransactionUid(transactionUID);
+        if (normalizedTransactionUid.isEmpty()) {
             throw new IllegalArgumentException("Transaction UID is required");
         }
+        if (!UTR_PATTERN.matcher(normalizedTransactionUid).matches()) {
+            throw new IllegalArgumentException("Invalid UTR format. Use 8-40 letters/numbers only.");
+        }
 
-        // Check for duplicate transaction UID
-        if (transactionRepo.existsByTransactionUID(transactionUID)) {
-            throw new IllegalStateException("Transaction UID already exists: " + transactionUID);
+        // Check for duplicate transaction UID (normalized).
+        // This blocks variants like abc123 / ABC123 / " abc 123 ".
+        if (transactionRepo.existsByNormalizedTransactionUID(normalizedTransactionUid)) {
+            throw new IllegalStateException("Transaction UID already exists: " + normalizedTransactionUid);
         }
 
         Users user = usersRepo.findByFirebaseUserUID(firebaseUID)
@@ -69,7 +77,7 @@ public class TransactionTableService {
         // Create transaction record
         TransactionTable transaction = new TransactionTable();
         transaction.setUserId(user);
-        transaction.setTransactionUID(transactionUID);
+        transaction.setTransactionUID(normalizedTransactionUid);
         transaction.setAmount(amount);
         transaction.setType(TransactionTable.TransactionType.DEPOSIT);
         transaction.setStatus(TransactionTable.TransactionStatus.PENDING);
@@ -78,13 +86,22 @@ public class TransactionTableService {
         TransactionTable savedTransaction = transactionRepo.save(transaction);
 
         // Audit log
-        auditLogService.logTransaction("DEPOSIT_REQUESTED", firebaseUID, amount, transactionUID);
+        auditLogService.logTransaction("DEPOSIT_REQUESTED", firebaseUID, amount, normalizedTransactionUid);
 
         // Notify user
-        notificationService.notifyDepositPending(firebaseUID, amount, transactionUID);
+        notificationService.notifyDepositPending(firebaseUID, amount, normalizedTransactionUid);
 
         log.info("✅ Deposit request created: id={}", savedTransaction.getId());
         return mapToDTO(savedTransaction);
+    }
+
+    private String normalizeTransactionUid(String transactionUID) {
+        if (transactionUID == null) {
+            return "";
+        }
+        return transactionUID.trim()
+                .replaceAll("\\s+", "")
+                .toUpperCase(Locale.ROOT);
     }
 
     /**
@@ -102,7 +119,7 @@ public class TransactionTableService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + firebaseUID));
 
         // Check wallet balance with pessimistic lock
-        Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+        Wallet wallet = walletRepo.findByUserIdForUpdate(firebaseUID)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found for user: " + firebaseUID));
 
         if (wallet.getCoins() < amount) {
@@ -161,7 +178,7 @@ public class TransactionTableService {
         }
 
         String firebaseUID = transaction.getUserId().getFirebaseUserUID();
-        Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+        Wallet wallet = walletRepo.findByUserIdForUpdate(firebaseUID)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
 
         if (transaction.getType() == TransactionTable.TransactionType.DEPOSIT) {
@@ -219,7 +236,7 @@ public class TransactionTableService {
         // ✅ Refund escrowed coins if it's a withdrawal
         if (transaction.getType() == TransactionTable.TransactionType.WITHDRAWAL) {
             String firebaseUID = transaction.getUserId().getFirebaseUserUID();
-            Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+            Wallet wallet = walletRepo.findByUserIdForUpdate(firebaseUID)
                     .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
             
             wallet.setCoins(wallet.getCoins() + transaction.getAmount());
@@ -262,7 +279,7 @@ public class TransactionTableService {
 
         // ✅ Refund escrowed coins
         if (transaction.getType() == TransactionTable.TransactionType.WITHDRAWAL) {
-            Wallet wallet = walletRepo.findByUserId_FirebaseUserUID(firebaseUID)
+            Wallet wallet = walletRepo.findByUserIdForUpdate(firebaseUID)
                     .orElseThrow(() -> new ResourceNotFoundException("Wallet not found"));
             
             wallet.setCoins(wallet.getCoins() + transaction.getAmount());
