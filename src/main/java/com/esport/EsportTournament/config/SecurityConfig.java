@@ -47,8 +47,8 @@ public class SecurityConfig {
                                 .maxAgeInSeconds(31536000)))
 
                 // Add custom filters to the chain
-                .addFilterBefore(apiRateLimitFilter, FirebaseAuthFilter.class)
-                .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(apiRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(firebaseAuthFilter, ApiRateLimitFilter.class)
                 .addFilterAfter(roleInjectionFilter, FirebaseAuthFilter.class)
 
                 .authorizeHttpRequests(auth -> auth
