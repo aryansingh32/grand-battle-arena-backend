@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +32,16 @@ public class AdminRoleController {
     @GetMapping("/users/{firebaseUID}")
     @PreAuthorize("hasAuthority('PERM_MANAGE_ROLES') or hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<Map<String, Object>> getUserRoles(@PathVariable String firebaseUID) {
+        return ResponseEntity.ok(Map.of(
+                "firebaseUID", firebaseUID,
+                "roles", rbacService.getUserRoles(firebaseUID)
+        ));
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> getMyRoles(Authentication authentication) {
+        String firebaseUID = (String) authentication.getPrincipal();
         return ResponseEntity.ok(Map.of(
                 "firebaseUID", firebaseUID,
                 "roles", rbacService.getUserRoles(firebaseUID)
@@ -64,4 +75,3 @@ public class AdminRoleController {
         }
     }
 }
-
