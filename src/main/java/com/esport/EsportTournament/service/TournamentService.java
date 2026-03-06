@@ -35,6 +35,7 @@ public class TournamentService {
     private final SlotService slotService;
     private final RulesService rulesService;
     private final NotificationService notificationService;
+    private final MetricsService metricsService;
     private final com.esport.EsportTournament.util.EncryptionUtil encryptionUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -88,6 +89,8 @@ public class TournamentService {
 
         Tournaments saved = tournamentRepo.save(tournament);
 
+        metricsService.recordTournamentCreated();
+        metricsService.recordAdminAction("create_tournament", "admin");
         log.info("✅ Tournament created: ID={}, TeamSize={}, Players/Team={}",
                 saved.getId(), saved.getTeamSize(), saved.getPlayersPerTeam());
 
@@ -313,6 +316,7 @@ public class TournamentService {
         tournament.setUpdatedAt(LocalDateTime.now());
 
         Tournaments updated = tournamentRepo.save(tournament);
+        metricsService.recordAdminAction("update_tournament_status_" + newStatus.name().toLowerCase(), "admin");
         log.info("Status updated successfully for tournament ID: {}", tournamentId);
 
         return mapToDTO(updated);
@@ -347,6 +351,7 @@ public class TournamentService {
         }
 
         tournamentRepo.deleteById(tournamentId);
+        metricsService.recordAdminAction("delete_tournament", "admin");
         log.info("Tournament hard-deleted successfully with ID: {}", tournamentId);
     }
 

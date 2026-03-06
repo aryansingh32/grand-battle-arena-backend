@@ -71,6 +71,7 @@ public class SlotService {
         private final AuditLogService auditLogService;
         private final WalletLedgerService walletLedgerService;
         private final DistributedLockService lockService;
+        private final MetricsService metricsService;
 
         // Lock timeout for slot booking operations
         private static final Duration SLOT_LOCK_TIMEOUT = Duration.ofSeconds(10);
@@ -180,9 +181,13 @@ public class SlotService {
 
                         log.info("✅ Slot booked successfully: user={}, tournament={}, slot={}, fee={}",
                                         firebaseUID, tournamentId, slotNumber, entryFee);
+                        metricsService.recordBookingCreated(tournamentId, 1);
 
                         return mapToDTO(bookedSlot);
 
+                } catch (RuntimeException e) {
+                        metricsService.recordBookingFailed(tournamentId, e.getClass().getSimpleName());
+                        throw e;
                 } finally {
                         // ── ALWAYS RELEASE LOCKS ──
                         lockService.releaseLock(slotLockKey, slotLockValue);
@@ -319,9 +324,13 @@ public class SlotService {
 
                         log.info("✅ Team booked: user={}, tournament={}, slots={}, cost={}",
                                         firebaseUID, tournamentId, players.size(), totalCost);
+                        metricsService.recordBookingCreated(tournamentId, players.size());
 
                         return bookedSlots;
 
+                } catch (RuntimeException e) {
+                        metricsService.recordBookingFailed(tournamentId, e.getClass().getSimpleName());
+                        throw e;
                 } finally {
                         // ── RELEASE ALL LOCKS (reverse order to prevent deadlocks) ──
                         for (int i = acquiredSlotLockKeys.size() - 1; i >= 0; i--) {
@@ -416,9 +425,13 @@ public class SlotService {
 
                         log.info("✅ Next available slot booked: user={}, tournament={}, slot={}",
                                         firebaseUID, tournamentId, slot.getSlotNumber());
+                        metricsService.recordBookingCreated(tournamentId, 1);
 
                         return mapToDTO(bookedSlot);
 
+                } catch (RuntimeException e) {
+                        metricsService.recordBookingFailed(tournamentId, e.getClass().getSimpleName());
+                        throw e;
                 } finally {
                         lockService.releaseLock(userLockKey, userLockValue);
                 }
@@ -487,6 +500,7 @@ public class SlotService {
                                 slot.getTournaments().getName(), refundAmount);
 
                 log.info("✅ Slot cancelled and refunded: slot={}, refund={}", slotId, refundAmount);
+                metricsService.recordBookingCancelled(slotId);
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -533,6 +547,7 @@ public class SlotService {
                                 slot.getTournaments().getName(), refundAmount);
 
                 log.info("✅ Admin cancelled slot: slot={}, admin={}", slotId, adminUID);
+                metricsService.recordBookingCancelled(slotId);
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

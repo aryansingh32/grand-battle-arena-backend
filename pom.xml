@@ -134,6 +134,11 @@
 			<artifactId>bucket4j-core</artifactId>
 			<version>8.1.0</version>
 		</dependency>
+		<!-- Prometheus Metrics Export -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

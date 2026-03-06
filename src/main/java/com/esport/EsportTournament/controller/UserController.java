@@ -3,6 +3,7 @@ package com.esport.EsportTournament.controller;
 import com.esport.EsportTournament.dto.UserDTO;
 import com.esport.EsportTournament.model.Users;
 import com.esport.EsportTournament.model.TournamentResult;
+import com.esport.EsportTournament.service.MetricsService;
 import com.esport.EsportTournament.service.NotificationService;
 import com.esport.EsportTournament.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,8 @@ import java.util.HashMap;
 public class UserController {
 
     private final UserService userService;
-    private final NotificationService notificationService; // ✅ inject notification service
+    private final NotificationService notificationService;
+    private final MetricsService metricsService;
 
     // ---------------- Authentication Helper ----------------
     private String getAuthenticatedUserUID(Authentication authentication) {
@@ -50,6 +52,7 @@ public class UserController {
 
         userDTO.setFirebaseUserUID(firebaseUID);
         UserDTO createdUser = userService.createUser(userDTO);
+        metricsService.recordUserRegistration("email");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
     }
@@ -126,6 +129,7 @@ public class UserController {
         try {
             Users.UserRole role = Users.UserRole.valueOf(roleStr.toUpperCase());
             log.info("Admin updating role for user {} to {}", firebaseUID, role);
+            metricsService.recordAdminAction("update_user_role", "admin");
 
             return ResponseEntity.ok(userService.updateUserRole(firebaseUID, role));
         } catch (IllegalArgumentException e) {
@@ -147,6 +151,7 @@ public class UserController {
         try {
             Users.UserStatus status = Users.UserStatus.valueOf(statusStr.toUpperCase());
             log.info("Admin updating status for user {} to {}", firebaseUID, status);
+            metricsService.recordAdminAction("update_user_status", "admin");
 
             return ResponseEntity.ok(userService.updateUserStatus(firebaseUID, status));
         } catch (IllegalArgumentException e) {

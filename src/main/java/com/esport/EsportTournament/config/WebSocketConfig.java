@@ -1,8 +1,16 @@
 package com.esport.EsportTournament.config;
 
+import com.esport.EsportTournament.service.MetricsService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.config.ChannelRegistration;
+import org.springframework.messaging.simp.stomp.StompCommand;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.web.socket.config.annotation.*;
 import java.util.Arrays;
 import java.util.List;
@@ -15,7 +23,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final MetricsService metricsService;
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -57,5 +68,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setMessageSizeLimit(128 * 1024) // 128 KB
                 .setSendBufferSizeLimit(512 * 1024) // 512 KB
                 .setSendTimeLimit(20000); // 20 seconds
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(new ChannelInterceptor() {
+            @Override
+            public Message<?> preSend(Message<?> message, MessageChannel channel) {
+                StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+                StompCommand command = accessor.getCommand();
+                if (StompCommand.CONNECT.equals(command)) {
+                    metricsService.recordWebSocketConnected();
+                } else if (StompCommand.DISCONNECT.equals(command)) {
+                    metricsService.recordWebSocketDisconnected();
+                }
+                return message;
+            }
+        });
     }
 }

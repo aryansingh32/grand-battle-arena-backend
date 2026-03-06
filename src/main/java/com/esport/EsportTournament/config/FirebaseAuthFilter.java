@@ -1,5 +1,6 @@
 package com.esport.EsportTournament.config;
 
+import com.esport.EsportTournament.service.MetricsService;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
@@ -8,10 +9,11 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,7 +22,10 @@ import java.util.Collections;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class FirebaseAuthFilter extends OncePerRequestFilter {
+
+    private final MetricsService metricsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -78,12 +83,14 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                 request.setAttribute("firebaseUid", firebaseUID);
                 request.setAttribute("firebaseEmail", email);
                 request.setAttribute("firebaseToken", decodedToken);
+                MDC.put("userId", firebaseUID);
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
                 log.debug("Set authentication in SecurityContext for user: {}", firebaseUID);
 
             } catch (FirebaseAuthException e) {
+                metricsService.recordSignInFailed("invalid_token");
                 log.warn("Invalid Firebase token: {} - Error code: {}", e.getMessage(), e.getErrorCode());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
@@ -91,6 +98,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                         .write("{\"error\":\"Invalid or expired token\",\"details\":\"" + e.getMessage() + "\"}");
                 return;
             } catch (IllegalStateException e) {
+                metricsService.recordSignInFailed("firebase_not_initialized");
                 // This catches the "FirebaseApp with name [DEFAULT] doesn't exist" error
                 log.error("Firebase not initialized: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
@@ -99,6 +107,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
                         "{\"error\":\"Authentication service unavailable\",\"details\":\"Firebase initialization failed\"}");
                 return;
             } catch (Exception e) {
+                metricsService.recordSignInFailed("auth_filter_error");
                 log.error("Error processing Firebase token", e);
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");

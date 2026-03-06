@@ -4,6 +4,7 @@ import com.esport.EsportTournament.dto.TournamentFilterDTO;
 import com.esport.EsportTournament.dto.TournamentsDTO;
 import com.esport.EsportTournament.dto.UpdateGameCredentials;
 import com.esport.EsportTournament.model.Tournaments;
+import com.esport.EsportTournament.service.MetricsService;
 import com.esport.EsportTournament.service.TournamentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class TournamentController {
 
     private final TournamentService tournamentService;
+    private final MetricsService metricsService;
     private final com.esport.EsportTournament.repository.SlotRepo slotRepo;
 
     @PreAuthorize("hasAuthority('PERM_MANAGE_TOURNAMENTS')")
@@ -39,6 +41,7 @@ public class TournamentController {
     @GetMapping("/{id}")
     public ResponseEntity<TournamentsDTO> getTournamentById(@PathVariable int id) {
         TournamentsDTO tournament = tournamentService.getTournamentById(id);
+        metricsService.recordTournamentViewed(id);
         return ResponseEntity.ok(tournament);
     }
 

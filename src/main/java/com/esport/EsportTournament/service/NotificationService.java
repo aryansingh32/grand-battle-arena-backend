@@ -27,6 +27,7 @@ public class NotificationService {
     private final NotificationRepo notificationRepo;
     private final NotificationReadRepo notificationReadRepo;
     private final UsersRepo usersRepo;
+    private final MetricsService metricsService;
 
     // ------------------------ Core Notifications ------------------------
 
@@ -56,6 +57,7 @@ public class NotificationService {
 
         // Send push notifications based on target audience
         sendPushNotificationByAudience(savedNotification);
+        metricsService.recordNotificationSent("broadcast_" + targetAudience.name().toLowerCase());
 
         return mapToDTO(savedNotification, adminUID, false);
     }
@@ -76,6 +78,7 @@ public class NotificationService {
 
         // Send push notification to specific user
         sendPushNotificationToUser(firebaseUID, title, message, null);
+        metricsService.recordNotificationSent("user_targeted");
 
         return mapToDTO(savedNotification, adminUID, false);
     }
@@ -168,6 +171,7 @@ public class NotificationService {
         sendPushNotificationToUser(participantUID, title, message, data);
     }
 
+    metricsService.recordNotificationSent("tournament_" + notificationType);
     log.info("Sent {} notification to {} unique participants (from {} slot UIDs) for tournament {}",
             notificationType, uniqueUIDs.size(), participantUIDs.size(), tournamentId);
     }

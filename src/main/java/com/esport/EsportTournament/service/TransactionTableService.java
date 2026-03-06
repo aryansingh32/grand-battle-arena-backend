@@ -42,6 +42,7 @@ public class TransactionTableService {
     private final EnhancedNotificationService notificationService;
     private final AuditLogService auditLogService;
     private final WalletLedgerService walletLedgerService;
+    private final MetricsService metricsService;
 
     private static final double COMMISSION_RATE = 0.03; // 3% platform fee
     private static final Pattern UTR_PATTERN = Pattern.compile("^[A-Z0-9]{8,40}$");
@@ -90,6 +91,7 @@ public class TransactionTableService {
 
         // Notify user
         notificationService.notifyDepositPending(firebaseUID, amount, normalizedTransactionUid);
+        metricsService.recordDeposit(amount);
 
         log.info("✅ Deposit request created: id={}", savedTransaction.getId());
         return mapToDTO(savedTransaction);
@@ -159,6 +161,7 @@ public class TransactionTableService {
 
         // Notify user
         notificationService.notifyWithdrawalRequested(firebaseUID, amount);
+        metricsService.recordWithdrawal(amount);
 
         log.info("✅ Withdrawal request created: id={}, txId={}", savedTransaction.getId(), transactionUID);
         return mapToDTO(savedTransaction);

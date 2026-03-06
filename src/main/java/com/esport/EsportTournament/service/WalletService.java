@@ -38,6 +38,7 @@ public class WalletService {
     private final AuditLogService auditLogService;
     private final EnhancedNotificationService notificationService;
     private final WalletLedgerService walletLedgerService;
+    private final MetricsService metricsService;
 
     /**
      * ✅ FIXED: Create wallet with proper initialization
@@ -92,6 +93,7 @@ public class WalletService {
                 updatedWallet.getCoins(), "ADMIN_ADJUSTMENT", null, null, currentActor());
         notificationService.notifyDepositSuccess(firebaseUID, amount, updatedWallet.getCoins());
 
+        metricsService.recordWalletCredit(amount, "coins_added");
         log.info("✅ Coins added: user={}, added={}, newBalance={}", firebaseUID, amount, updatedWallet.getCoins());
         return mapToDTO(updatedWallet);
     }
@@ -126,6 +128,7 @@ public class WalletService {
         walletLedgerService.recordEntry(updatedWallet, WalletLedger.Direction.DEBIT, amount,
                 updatedWallet.getCoins(), "ADMIN_ADJUSTMENT", null, null, currentActor());
 
+        metricsService.recordWalletDebit(amount, "coins_deducted");
         log.info("✅ Coins deducted: user={}, deducted={}, newBalance={}", firebaseUID, amount, updatedWallet.getCoins());
         return mapToDTO(updatedWallet);
     }
@@ -152,6 +155,7 @@ public class WalletService {
 
         auditLogService.logWalletOperation("BALANCE_SET_BY_ADMIN", adminUID, newBalance, newBalance);
 
+        metricsService.recordAdminAction("set_wallet_balance", adminUID);
         log.info("✅ Balance set by admin: user={}, oldBalance={}, newBalance={}",
                 firebaseUID, oldBalance, newBalance);
         int delta = newBalance - oldBalance;
@@ -208,6 +212,9 @@ public class WalletService {
                 toWallet.getCoins(), "TRANSFER", fromUID, null, adminUID);
 
         auditLogService.logWalletOperation("TRANSFER_ADMIN", adminUID, amount, amount);
+        metricsService.recordWalletDebit(amount, "transfer_out");
+        metricsService.recordWalletCredit(amount, "transfer_in");
+        metricsService.recordAdminAction("wallet_transfer", adminUID);
 
         log.info("✅ Transfer completed: from={}, to={}, amount={}", fromUID, toUID, amount);
     }

@@ -64,6 +64,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/qr/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/qr").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/metrics/**")
+                                .hasRole("ADMIN")
                         .requestMatchers("/ws/**").permitAll()
 
                         // Registration endpoints - allow unregistered users to complete registration

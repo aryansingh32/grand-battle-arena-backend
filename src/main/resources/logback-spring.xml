@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- ================================================================= -->
+    <!-- Structured Logging for Grand Battle Arena Backend                  -->
+    <!-- LOCAL profile  → Human-readable, colored console                  -->
+    <!-- DEFAULT (prod) → JSON format for log aggregation (Render, ELK)    -->
+    <!-- ================================================================= -->
+
+    <!-- ─── SHARED: Always log timestamps in IST ─── -->
+    <property name="LOG_DATEFORMAT_PATTERN" value="yyyy-MM-dd HH:mm:ss.SSS" />
+
+    <!-- ─── LOCAL/DEV PROFILE: Pretty console logs ─── -->
+    <springProfile name="local,dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg %X{requestId:- } %X{userId:- }%n%throwable</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE" />
+        </root>
+        <logger name="com.esport" level="DEBUG" />
+    </springProfile>
+
+    <!-- ─── PRODUCTION PROFILE (default): JSON-structured logs ─── -->
+    <springProfile name="!local,!dev">
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <!-- JSON-line format: one JSON object per log line -->
+                <pattern>{"ts":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","logger":"%logger{36}","msg":"%replace(%msg){'\"','\\\"'}","thread":"%thread","requestId":"%X{requestId:-}","userId":"%X{userId:-}","method":"%X{httpMethod:-}","path":"%X{httpPath:-}","ex":"%replace(%throwable){'\"','\\\"'}"}%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <!-- ─── File appender for persistent logs ─── -->
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>logs/application.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>logs/application.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>500MB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <pattern>{"ts":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","logger":"%logger{36}","msg":"%replace(%msg){'\"','\\\"'}","thread":"%thread","requestId":"%X{requestId:-}","userId":"%X{userId:-}","method":"%X{httpMethod:-}","path":"%X{httpPath:-}","ex":"%replace(%throwable){'\"','\\\"'}"}%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON_CONSOLE" />
+            <appender-ref ref="FILE" />
+        </root>
+        <logger name="com.esport" level="INFO" />
+
+        <!-- Quieten noisy libraries -->
+        <logger name="org.springframework.security" level="WARN" />
+        <logger name="org.hibernate.SQL" level="WARN" />
+        <logger name="io.lettuce.core" level="WARN" />
+    </springProfile>
+</configuration>
