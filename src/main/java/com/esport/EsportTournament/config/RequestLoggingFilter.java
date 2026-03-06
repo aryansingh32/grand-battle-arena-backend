@@ -7,7 +7,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -26,7 +29,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
-@Order(1) // Run before all other filters
+@Order(Ordered.HIGHEST_PRECEDENCE) // Run before Spring Security filter chain
 @RequiredArgsConstructor
 public class RequestLoggingFilter implements Filter {
 
@@ -52,11 +55,7 @@ public class RequestLoggingFilter implements Filter {
             requestId = UUID.randomUUID().toString().substring(0, 8); // short UUID
         }
 
-        // Extract user ID from auth header context (set by security filters)
-        String userId = request.getHeader("X-User-Id");
-        if (userId == null) {
-            userId = "-";
-        }
+        String userId = resolveCurrentUserId(request);
 
         String method = request.getMethod();
         String path = request.getRequestURI();
@@ -82,6 +81,8 @@ public class RequestLoggingFilter implements Filter {
 
         } finally {
             long duration = System.currentTimeMillis() - startTime;
+            String resolvedUserId = resolveCurrentUserId(request);
+            MDC.put(USER_ID_KEY, resolvedUserId);
 
             if (!isHealthCheck) {
                 int status = response.getStatus();
@@ -105,5 +106,31 @@ public class RequestLoggingFilter implements Filter {
             MDC.remove(HTTP_METHOD_KEY);
             MDC.remove(HTTP_PATH_KEY);
         }
+    }
+
+    private String resolveCurrentUserId(HttpServletRequest request) {
+        String headerUserId = request.getHeader("X-User-Id");
+        if (headerUserId != null && !headerUserId.isBlank()) {
+            return headerUserId;
+        }
+
+        Object requestUser = request.getAttribute("firebaseUid");
+        if (requestUser instanceof String requestUid && !requestUid.isBlank()) {
+            return requestUid;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()
+                && authentication.getPrincipal() instanceof String principal
+                && !principal.isBlank()) {
+            return principal;
+        }
+
+        String mdcUserId = MDC.get(USER_ID_KEY);
+        if (mdcUserId != null && !mdcUserId.isBlank()) {
+            return mdcUserId;
+        }
+
+        return "-";
     }
 }

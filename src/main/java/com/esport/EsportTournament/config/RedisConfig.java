@@ -180,6 +180,13 @@ public class RedisConfig implements CachingConfigurer {
             @Override
             public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
                 log.error("❌ Redis Cache GET Error for key '{}': {}", key, exception.getMessage());
+                // Clear corrupted cache entries so the next request can repopulate cleanly.
+                try {
+                    cache.evict(key);
+                    log.warn("🧹 Evicted corrupted Redis cache key '{}'", key);
+                } catch (Exception evictException) {
+                    log.warn("Failed to evict corrupted Redis cache key '{}': {}", key, evictException.getMessage());
+                }
             }
 
             @Override
